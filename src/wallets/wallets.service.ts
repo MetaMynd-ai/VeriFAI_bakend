@@ -1,0 +1,554 @@
+import {
+    Injectable,
+    Logger,
+    OnModuleInit
+} from '@nestjs/common'
+import {
+    Wallet,
+    WalletDocument
+} from './entities/wallet.entity'
+import {IVC, I_IVC} from './interfaces/ivc.namespace'
+import {
+    AccountBalanceQuery,
+    AccountId,
+    LedgerId,
+    PrivateKey,
+    Status,
+    Transaction
+} from '@hashgraph/sdk'
+import * as moment from 'moment'
+import {Model} from 'mongoose'
+import {InjectModel} from '@nestjs/mongoose'
+
+import {
+    IHedera,
+    ISmartNode
+} from '@hsuite/types'
+import {
+    WalletTransaction,
+    WalletTransactionDocument
+} from './entities/transaction.entity'
+import {ClientService} from '@hsuite/client'
+import {HederaClientHelper} from '@hsuite/helpers'
+import {SmartConfigService} from '@hsuite/smart-config'
+import Decimal from 'decimal.js'
+import {IpfsResolverService} from '@hsuite/ipfs-resolver'
+import {IDIssuer, IDIssuerDocument} from 'src/issuers/entities/issuer.entity'
+import {IDCredential, IDCredentialDocument} from 'src/identities/credentials/entities/credential.entity'
+import {CypherService} from 'src/cypher/cypher.service'
+import {ConfigService} from '@nestjs/config'
+import * as lodash from 'lodash'
+import {DiscordLogger} from 'src/common/logger/discord-logger.service'
+import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
+
+@Injectable()
+export class WalletsService implements OnModuleInit {
+    @InjectPinoLogger(WalletsService.name)
+    private readonly logger: PinoLogger
+
+    private hederaClient: HederaClientHelper;
+    private maxAutomaticTokenAssociations: number;
+
+    constructor(
+        private readonly smartConfigService: SmartConfigService,
+        private readonly nodeClientService: ClientService,
+        private readonly ipfsResolver: IpfsResolverService,
+        private readonly cypherService: CypherService,
+        private configService: ConfigService,
+        private readonly discordLogger: DiscordLogger,
+        @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+        @InjectModel(WalletTransaction.name) private walletTransactiontModel: Model<WalletTransactionDocument>,
+        @InjectModel(IDIssuer.name) private issuerModel: Model<IDIssuerDocument>,
+        @InjectModel(IDCredential.name) private credentialModel: Model<IDCredentialDocument>
+    ) {
+        this.maxAutomaticTokenAssociations = Number(this.configService.get<string>('maxAutomaticTokenAssociations'));
+        this.hederaClient = new HederaClientHelper(
+            LedgerId.fromString(this.smartConfigService.getEnvironment()),
+            this.smartConfigService.getOperator(),
+            this.smartConfigService.getMirrorNode()
+        );
+    }
+
+    async onModuleInit() {}
+
+    async getWallet(
+        userId: string
+    ): Promise<IVC.Wallet.History> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let wallet: WalletDocument = await this.walletModel.findOne({
+                    owner: userId
+                });
+
+                // if the wallet does not exist, then throw an error...
+                if (!wallet) {
+                    //await this.discordLogger.warn(`wallet not found for user ${userId}`, 'WalletsService.getWallet');
+                    throw (new Error(`wallet not found for user ${userId}`));
+                }
+
+                // populating the transactions for the wallet...
+                await wallet.populate({path: 'transactions'});
+
+                // SMART-NODE CALL: fetching the onchain balance for the wallet...
+                wallet.account.balance = (await this.nodeClientService.axios.get(
+                    `/accounts/restful/${wallet.account.id}/tokens`)).data;
+
+                const nfts = (await this.nodeClientService.axios.get(
+                    `/accounts/restful/${wallet.account.id}/nfts`)).data.nfts;
+
+                let issuers = await this.issuerModel.find({
+                    nftID: {$in: wallet.account.balance.tokens.map((token: any) => token.token_id)}
+                });
+
+                let credentials: Array<IDCredentialDocument> = await this.credentialModel.find({
+                    owner: userId,
+                    issuer: {$in: issuers.map(issuer => issuer.issuer)}
+                });
+
+                let metadataPromises = nfts.map(nft => this.ipfsResolver.getMetadata(nft.metadata));
+                let metadataResponses = await Promise.all(metadataPromises);
+
+                for (let index = 0; index < metadataResponses.length; index++) {
+                    const metadata = metadataResponses[index];
+                    let credential = credentials.find(credential => credential.serial_number == nfts[index].serial_number);
+                    nfts[index].metadata = metadata;
+
+                    if (!lodash.isUndefined(credential?.iv)) {
+                        nfts[index].metadata.properties = JSON.parse(await this.cypherService.decrypt(
+                            nfts[index].metadata.properties.encryptedText,
+                            credential.iv
+                        ))
+                    }
+                }
+
+                wallet.account.balance.tokens.forEach((token: any) => {
+                    let nftsForToken = nfts.filter((nft: any) => nft.token_id == token.token_id);
+                    let issuer = issuers.find(issuer => issuer.nftID == token.token_id).issuer;
+
+                    nftsForToken = nftsForToken.map(nft => {
+                        nft.credential = credentials.find(credential =>
+                            credential.issuer == issuer && credential.serial_number == nft.serial_number)
+
+                        return nft;
+                    });
+
+                    token['nfts'] = nftsForToken;
+                });
+                this.logger.info({
+                    userId: userId,
+                    accountId: wallet.account.id,
+                    tokenCount: wallet.account.balance?.tokens?.length || 0,
+                    nftCount: nfts?.length || 0,
+                    transactionCount: wallet.transactions.length
+                }, 'Wallet details fetched successfully');
+
+                resolve({
+                    ...wallet.account,
+                    transactions: wallet.transactions.filter(transaction =>
+                        transaction.from == wallet.account.id ||
+                        transaction.to == wallet.account.id
+                    )
+                });
+            } catch (error) {
+
+                if (error.message.includes('wallet not found')) {
+                    this.logger.info({
+                        userId: userId
+                    }, 'Wallet not found');
+
+                } else {
+                    this.logger.error({
+                  
+                        userId: userId,
+                        error: error.message,
+                        method: 'WalletsService.getWallet()',
+                        stack: error.stack
+                    },'Error fetching wallet details');
+                    await this.discordLogger.error(`getWallet error: ${error} for user ${userId}`, error.stack, 'WalletsService.getWallet()');
+                }
+
+                reject(error);
+            }
+        });
+    }
+
+    async createWallet(createWalletRequest: IVC.Wallet.Request.Create): Promise<Wallet> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let walletDocument: WalletDocument = await this.walletModel.findOne({
+                    owner: createWalletRequest.userId
+                });
+
+                // if the wallet already exists, then throw an error...
+                if (walletDocument) {
+                    throw (new Error(`wallet already exists for user ${createWalletRequest.userId}`));
+                }
+
+                // SMART-NODE CALL: creating the wallet...
+                let payload: IHedera.ILedger.IAccounts.ICreateRequest = {
+                    balance: 0,
+                    maxAutomaticTokenAssociations: <number>this.maxAutomaticTokenAssociations,
+                    isReceiverSignatureRequired: true
+                };
+
+                let response = await this.nodeClientService.axios.post(`/accounts`, payload);
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    // saving the wallet to the database...
+                    walletDocument = new this.walletModel({
+                        owner: createWalletRequest.userId,
+                        account: {
+                            id: receipt.accountId.toString(),
+                            balance: null
+                        },
+                        transactions: []
+                    });
+
+                    await walletDocument.save();
+
+                    this.logger.info({
+                        msg: 'Wallet created successfully',
+                        userId: createWalletRequest.userId,
+                        accountId: receipt.accountId.toString()
+                    });
+
+                    resolve(<Wallet>walletDocument.toJSON());
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                
+                    error: error.message,
+                    method: 'WalletsService.createWallet()',
+                    userId: createWalletRequest.userId,
+                    stack: error.stack
+                }, 'Error creating wallet');
+                await this.discordLogger.error(`createWallet error: ${error}`, 'WalletsService.createWallet()');
+                reject(error);
+            }
+        });
+    }
+
+    async associateToken(
+        associateWalletRequest: IVC.Wallet.Request.Associate
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+
+                // SMART-NODE CALL: associating a token to the wallet...
+                let response = await this.nodeClientService.axios.post(
+                    `/hts/associate/${associateWalletRequest.tokenId}/${associateWalletRequest.walletId}`
+                );
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                   
+                    this.logger.info({
+                      
+                        tokenId: associateWalletRequest.tokenId,
+                        walletId: associateWalletRequest.walletId
+                    }, 'Token associated successfully',);
+                    resolve({
+                        status: receipt.status.toString(),
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                 
+                    tokenId: associateWalletRequest.tokenId,
+                    walletId: associateWalletRequest.walletId,
+                    error: error.message,
+                    method: 'WalletsService.associateToken()'
+                }, 'Error associating token');
+                reject(error);
+            }
+        });
+    }
+
+    async dissociateToken(
+        associateWalletRequest: IVC.Wallet.Request.Associate
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+
+                // SMART-NODE CALL: dissociating a token to the wallet...
+                let response = await this.nodeClientService.axios.post(
+                    `/hts/dissociate/${associateWalletRequest.tokenId}/${associateWalletRequest.walletId}`
+                );
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.info({
+                 
+                        tokenId: associateWalletRequest.tokenId,
+                        walletId: associateWalletRequest.walletId,
+                        transactionId: submitTx.transactionId.toString()
+                    }, 'Token dissociation successful');
+                  
+                    resolve({
+                        status: receipt.status.toString(),
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                } else {
+
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    tokenId: associateWalletRequest.tokenId,
+                    walletId: associateWalletRequest.walletId,
+                    error: error.message,
+                    method: 'WalletsService.dissociateToken()'
+                }, 'Error dissociating token');
+                reject(error);
+            }
+        });
+    }
+
+    async withdrawToken(
+        withdraw: I_IVC.IWallet.IRequest.IWithdraw
+    ): Promise<I_IVC.IWallet.IResponse.IWithdraw> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let wallet: IVC.Wallet.History = await this.getWallet(withdraw.userId);
+
+                // if the wallet does not exist, then throw an error...
+                if (!wallet) {
+                    throw (new Error(`wallet not found for user ${withdraw.userId}`));
+                }
+
+                // checking if the wallet has sufficient funds...
+                let tokenBalance = wallet.balance.tokens.find((token: any) => token.token_id == withdraw.token.id);
+                if (new Decimal(tokenBalance.balance).lessThan(withdraw.amount)) {
+                    throw (new Error(`insufficient funds on your wallet.`));
+                }
+
+                // SMART-NODE CALL: moving funds from user's wallet into a destination wallet...
+                let payload: IHedera.ILedger.IHTS.ITransferFungibleToken = {
+                    token_id: withdraw.token.id,
+                    sender: wallet.id,
+                    receiver: withdraw.wallet,
+                    amount: withdraw.amount,
+                    decimals: withdraw.token.decimals,
+                    memo: 'withdraw funds from wallet'
+                }
+
+                let response = await this.nodeClientService.axios.post(
+                    `/hts/transfer/token`,
+                    payload
+                );
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.info({
+                        userId: withdraw.userId,
+                        tokenId: withdraw.token.id,
+                        amount: withdraw.amount,
+                        transactionId: submitTx.transactionId.toString()
+                    }, 'Token withdrawal successful');
+                    let withdrawResponse: I_IVC.IWallet.IResponse.IWithdraw = {
+                        amount: withdraw.amount,
+                        date: moment().unix(),
+                        transactionId: submitTx.transactionId.toString().toString(),
+                        status: I_IVC.IWallet.IResponse.IWthdrawStatus.COMPLETED
+                    };
+                    this.logger.info({
+                        userId: withdraw.userId,
+                        tokenId: withdraw.token.id,
+                        amount: withdraw.amount
+                    },'Token withdrawal completed');
+                    resolve(withdrawResponse);
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    userId: withdraw.userId,
+                    tokenId: withdraw.token?.id,
+                    amount: withdraw.amount,
+                    error: error.message,
+                    method: 'WalletsService.withdrawToken()'
+                }, 'Error withdrawing token');
+                reject(error);
+            }
+        });
+    }
+
+    async deleteWallet(
+        userId: string,
+        transferAccountId: AccountId
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let walletDocument: WalletDocument = await this.walletModel.findOne({
+                    owner: userId
+                });
+
+                // if the wallet does not exist, then throw an error...
+                if (!walletDocument) {
+                    throw (new Error(`owner ${userId} not found`));
+                }
+
+                // SMART-NODE CALL: creating the wallet...
+                let response = await this.nodeClientService.axios.delete(`/accounts/${walletDocument.account.id}`, {
+                    data: {
+                        transferAccountId: transferAccountId.toString()
+                    }
+                });
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.info({
+                        userId: userId,
+                        transactionId: submitTx.transactionId.toString()
+                    }, 'Wallet deletion successful');
+                    await walletDocument.deleteOne();
+                  
+                    resolve({
+                        status: receipt.status.toString(),
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    userId: userId,
+                    transferAccountId: transferAccountId.toString(),
+                    error: error.message,
+                    method: 'WalletsService.deleteWallet()'
+                }, 'Error deleting wallet',);
+                reject(error);
+            }
+        });
+    }
+
+    async getToken(
+        userId: string
+
+    ): Promise<any> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let wallet: WalletDocument = await this.walletModel.findOne({
+                    owner: userId
+                });
+
+                // if the wallet does not exist, then throw an error...
+                if (!wallet) {
+                    throw (new Error(`wallet not found for user ${userId}`));
+                }
+
+                // Use wallet.id for the API call
+                const walletId = wallet.account.id; // Get wallet ID from the wallet document
+
+                // SMART-NODE CALL: fetching token relationships for the specified wallet...
+                const response = await this.nodeClientService.axios.get(`/accounts/restful/${walletId}/tokens`, {
+                });
+                this.logger.info({
+                    userId: userId,
+                    walletId: walletId,
+                    tokenCount: response.data?.tokens?.length || 0
+                },'Successfully retrieved wallet tokens',);
+                // resolving the response data...
+                resolve(response.data);
+            } catch (error) {
+                this.logger.error({
+                    userId: userId,
+                    error: error.message,
+                    method: 'WalletsService.getToken()',
+                    stack: error.stack
+                }, 'Error fetching wallet tokens');
+                await this.discordLogger.error(`getToken error: ${error}`, 'WalletsService.getToken()');
+                reject(error);
+            }
+        });
+    }
+
+    async getNftInfo(
+        tokenId: string,
+        serialNumber: string
+    ): Promise<any> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // SMART-NODE CALL: fetching NFT information...
+                const response = await this.nodeClientService.axios.get(
+                    `/hts/restful/tokens/${tokenId}/nfts/${serialNumber}`
+                );
+
+                this.logger.info({
+                    msg: 'Successfully retrieved NFT information',
+                    tokenId: tokenId,
+                    serialNumber: serialNumber
+                });
+
+
+                resolve(response.data);
+            } catch (error) {
+                this.logger.error({
+                    tokenId: tokenId,
+                    serialNumber: serialNumber,
+                    error: error.message,
+                    method: 'WalletsService.getNftInfo()',
+                    stack: error.stack
+                }, 'Error fetching NFT information');
+                await this.discordLogger.error(`getNftInfo error: ${error} for serialNumber ${serialNumber}`, 'WalletsService.getNftInfo()');
+                reject(error);
+            }
+        });
+    }
+}

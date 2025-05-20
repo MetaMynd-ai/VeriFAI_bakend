@@ -1,0 +1,4589 @@
+This file is a merged representation of the entire codebase, combined into a single document by Repomix.
+
+<file_summary>
+This section contains a summary of this file.
+
+<purpose>
+This file contains a packed representation of the entire repository's contents.
+It is designed to be easily consumable by AI systems for analysis, code review,
+or other automated processes.
+</purpose>
+
+<file_format>
+The content is organized as follows:
+1. This summary section
+2. Repository information
+3. Directory structure
+4. Repository files, each consisting of:
+  - File path as an attribute
+  - Full contents of the file
+</file_format>
+
+<usage_guidelines>
+- This file should be treated as read-only. Any changes should be made to the
+  original repository files, not this packed version.
+- When processing this file, use the file path to distinguish
+  between different files in the repository.
+- Be aware that this file may contain sensitive information. Handle it with
+  the same level of security as you would the original repository.
+</usage_guidelines>
+
+<notes>
+- Some files may have been excluded based on .gitignore rules and Repomix's configuration
+- Binary files are not included in this packed representation. Please refer to the Repository Structure section for a complete list of file paths, including binary files
+- Files matching patterns in .gitignore are excluded
+- Files matching default ignore patterns are excluded
+- Files are sorted by Git change count (files with more changes are at the bottom)
+</notes>
+
+<additional_info>
+
+</additional_info>
+
+</file_summary>
+
+<directory_structure>
+balance/
+  interfaces/
+    balance-response.interface.ts
+  balance.controller.spec.ts
+  balance.controller.ts
+  balance.module.ts
+  balance.service.spec.ts
+  balance.service.ts
+common/
+  logger/
+    discord-logger.service.ts
+    logger.module.ts
+cypher/
+  cypher.module.ts
+  cypher.service.ts
+hts/
+  dto/
+    unfreeze-accounts.dto.ts
+    wipe-nft.dto.ts
+  hts.controller.spec.ts
+  hts.controller.ts
+  hts.module.ts
+  hts.service.spec.ts
+  hts.service.ts
+identities/
+  credentials/
+    entities/
+      credential.entity.ts
+    guards/
+      issuer.guard.ts
+    credentials.controller.spec.ts
+    credentials.controller.ts
+    credentials.module.ts
+    credentials.service.spec.ts
+    credentials.service.ts
+  entities/
+    identity.entity.ts
+  identities.controller.spec.ts
+  identities.controller.ts
+  identities.module.ts
+  identities.service.spec.ts
+  identities.service.ts
+issuers/
+  entities/
+    issuer.entity.ts
+  payloads/
+    issuer.payload.ts
+  issuers.controller.spec.ts
+  issuers.controller.ts
+  issuers.module.ts
+  issuers.service.spec.ts
+  issuers.service.ts
+wallets/
+  entities/
+    transaction.entity.ts
+    wallet.entity.ts
+  interfaces/
+    ivc.namespace.ts
+  wallets.controller.spec.ts
+  wallets.controller.ts
+  wallets.module.ts
+  wallets.service.spec.ts
+  wallets.service.ts
+app.controller.spec.ts
+app.controller.ts
+app.module.ts
+app.service.ts
+main.ts
+</directory_structure>
+
+<files>
+This section contains the contents of the repository's files.
+
+<file path="balance/interfaces/balance-response.interface.ts">
+import { ApiProperty } from '@nestjs/swagger';
+
+class Balance {
+  @ApiProperty()
+  account: string;
+
+  @ApiProperty()
+  balance: number;
+}
+
+export class BalanceResponse {
+  @ApiProperty()
+  timestamp: string | null;
+
+  @ApiProperty({ type: [Balance] })
+  balances: Balance[];
+}
+</file>
+
+<file path="balance/balance.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { BalanceController } from './balance.controller';
+
+describe('BalanceController', () => {
+  let controller: BalanceController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [BalanceController],
+    }).compile();
+
+    controller = module.get<BalanceController>(BalanceController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+</file>
+
+<file path="balance/balance.controller.ts">
+import { Controller, Get, Param, Query, NotFoundException } from '@nestjs/common';
+import { BalanceService } from './balance.service';
+import { BalanceResponse } from './interfaces/balance-response.interface'; // Import the class
+import { ApiTags, ApiParam, ApiQuery, ApiResponse } from '@nestjs/swagger';
+
+@ApiTags('balance')
+@Controller('balance')
+export class BalanceController {
+  constructor(private readonly balanceService: BalanceService) {}
+
+  @Get(':accountId')
+  @ApiParam({ name: 'accountId', required: true, description: 'Hedera account ID' })
+  @ApiQuery({ name: 'isHbar', required: false, type: Boolean, description: 'Convert balance to Hbar' })
+  @ApiResponse({ status: 200, description: 'The account balance', type: BalanceResponse })
+  @ApiResponse({ status: 404, description: 'Account not found' })
+  async getBalance(
+    @Param('accountId') accountId: string,
+    @Query('isHbar') isHbar?: string
+  ): Promise<BalanceResponse> {
+    const convertToHbar = isHbar === 'true';  // Convert query parameter to boolean
+    try {
+      return await this.balanceService.getBalance(accountId, convertToHbar);
+    } catch (error) {
+      if (error instanceof NotFoundException) {
+        throw new NotFoundException('Account not found');
+      }
+      throw error;
+    }
+  }
+}
+</file>
+
+<file path="balance/balance.module.ts">
+import { Module } from '@nestjs/common';
+import { BalanceService } from './balance.service';
+import { BalanceController } from './balance.controller';
+import { HttpModule } from '@nestjs/axios';
+import { SmartConfigModule } from '@hsuite/smart-config';
+
+@Module({
+  imports: [HttpModule,SmartConfigModule],
+  providers: [BalanceService],
+  controllers: [BalanceController],
+  exports: [BalanceService]
+})
+export class BalanceModule { }
+</file>
+
+<file path="balance/balance.service.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { BalanceService } from './balance.service';
+
+describe('BalanceService', () => {
+  let service: BalanceService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [BalanceService],
+    }).compile();
+
+    service = module.get<BalanceService>(BalanceService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+</file>
+
+<file path="balance/balance.service.ts">
+import {Injectable, NotFoundException, OnModuleInit, Logger  } from '@nestjs/common';
+
+import { AxiosResponse } from 'axios';
+import { HttpService } from '@nestjs/axios';
+import { SmartConfigService } from '@hsuite/smart-config'
+import { BalanceResponse } from './interfaces/balance-response.interface';
+import { clearScreenDown } from 'readline';
+@Injectable()
+export class BalanceService  {
+  private logger: Logger = new Logger(BalanceService.name);
+
+  constructor(
+    private readonly httpService: HttpService,
+    private readonly smartConfigService: SmartConfigService
+  ) {}
+
+  private tinybarToHbar(tinybar: number): number {
+    return tinybar / 100000000;
+  }
+
+  async getBalance(accountId: string, isHbar: boolean): Promise<BalanceResponse> {
+    return new Promise(async (resolve, reject) => {
+      try {
+        const url = `${this.smartConfigService.getMirrorNode().url}/api/v1/balances?account.id=${accountId}`;
+        const response: AxiosResponse = await this.httpService.get(url).toPromise();
+        
+        const { timestamp, balances } = response.data;
+
+        if (!balances || balances.length === 0) {
+          throw new NotFoundException('Account not found');
+        }
+
+        // Convert balances to Hbar if isHbar is true
+        const convertedBalances = balances.map((balance: { account: any; balance: number; }) => {
+          return {
+            account: balance.account,
+            balance: isHbar ? this.tinybarToHbar(balance.balance) : balance.balance
+          };
+        });
+
+        const result: BalanceResponse = { timestamp, balances: convertedBalances };
+        this.logger.log({
+          msg: 'Balance fetched successfully',
+          accountId: accountId,
+          balanceCount: result.balances.length
+        });
+        resolve(result);
+      } catch (error) {
+        this.logger.error({
+          msg: 'Error fetching balance',
+          accountId: accountId,
+          error: error?.message,
+          method: 'BalanceService.getBalance()'
+        });
+        reject(error);
+      }
+    });
+  }
+}
+</file>
+
+<file path="common/logger/discord-logger.service.ts">
+import { Injectable, Logger, LogLevel } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import axios from 'axios';
+
+@Injectable()
+export class DiscordLogger extends Logger {
+  private webhookUrl: string;
+
+  constructor(private readonly configService: ConfigService) {
+    super();
+    this.webhookUrl = this.configService.get<string>('DISCORD_WEBHOOK_URL');
+  }
+
+  async log(message: any, context?: string) {
+    super.log(message, context);
+    await this.sendToDiscord('log', message, context);
+  }
+
+  async error(message: any, trace?: string, context?: string) {
+    super.error(message, trace, context);
+    await this.sendToDiscord('error', `${message}\nTrace: ${trace}`, context);
+  }
+
+  async warn(message: any, context?: string) {
+    super.warn(message, context);
+    await this.sendToDiscord('warn', message, context);
+  }
+
+  async debug(message: any, context?: string) {
+    super.debug(message, context);
+    await this.sendToDiscord('debug', message, context);
+  }
+
+  async verbose(message: any, context?: string) {
+    super.verbose(message, context);
+    await this.sendToDiscord('verbose', message, context);
+  }
+
+  private async sendToDiscord(level: LogLevel, message: string, context?: string) {
+    if (!this.webhookUrl) {
+      return;
+    }
+    const logMessage = {
+      username: 'IVC Logger',
+      embeds: [
+        {
+          title: `${level} - ${context || 'Application'}`,
+          description: `\`\`\`${message}\`\`\``,
+          color: this.getColor(level),
+          timestamp: new Date().toISOString(),
+        },
+      ],
+    };
+
+    try {
+      await axios.post(this.webhookUrl, logMessage);
+    } catch (error) {
+      super.error(`Failed to send log to Discord: ${error.message}`);
+    }
+  }
+
+  private getColor(level: LogLevel): number {
+    const colors: Record<LogLevel, number> = {
+        error: 0xff0000,
+        warn: 0xffff00,
+        log: 0x00ff00,
+        debug: 0x3498db,
+        verbose: 0x95a5a6,
+        fatal: 0xff0000,
+    };
+    return colors[level] || 0xffffff;
+  }
+}
+</file>
+
+<file path="common/logger/logger.module.ts">
+import { Module, Global } from '@nestjs/common';
+import { LoggerModule as PinoLoggerModule } from 'nestjs-pino';
+import { DiscordLogger } from './discord-logger.service';
+import { ConfigService } from '@nestjs/config';
+import * as fs from 'fs';
+import * as path from 'path';
+import pino from 'pino';
+import { ecsFormat } from '@elastic/ecs-pino-format';
+import * as rfs from 'rotating-file-stream';
+
+@Global()
+@Module({
+  imports: [
+    PinoLoggerModule.forRootAsync({
+      inject: [ConfigService],
+      useFactory: (configService: ConfigService) => {
+        const logsDir = path.join(process.cwd(), 'logs');
+        
+        let logStream;
+        try {
+          if (!fs.existsSync(logsDir)) {
+            fs.mkdirSync(logsDir, { recursive: true });
+          }
+          
+          // Create a rotating file stream instead of a regular file stream
+          logStream = rfs.createStream('app.log', {
+            interval: '1d',       // Rotate daily
+            path: logsDir,        // Log directory
+            size: '10M',          // Also rotate when size exceeds 10MB
+            compress: 'gzip',     // Compress rotated files
+            maxFiles: 14,         // Keep logs for 14 days
+            // The rotated file will be named with this pattern: app-YYYY-MM-DD-HH-MM-SS-N.log
+            // where N is an incremental number
+          });
+          
+        } catch (error) {
+          console.error(`Failed to create logs directory or stream: ${error.message}`);
+          // Fallback to stdout if we can't write to a file
+          logStream = process.stdout;
+        }
+        
+        const isDev = configService.get<string>('NODE_ENV') !== 'production';
+        
+        const ecsOptions = {
+          serviceName: 'smart-app-backend'
+        };
+        
+        return {
+          pinoHttp: {
+          
+            level: 'info',
+            stream: pino.multistream([
+              { stream: process.stdout },  // Also log to console
+              { stream: logStream }        // Log to rotating file
+            ])
+          }
+        };
+      }
+    })
+  ],
+  providers: [DiscordLogger],
+  exports: [PinoLoggerModule, DiscordLogger],
+})
+export class LoggerModule {}
+</file>
+
+<file path="cypher/cypher.module.ts">
+import { Module } from '@nestjs/common';
+import { CypherService } from './cypher.service';
+
+@Module({
+  imports: [],
+  controllers: [],
+  providers: [CypherService],
+  exports: [CypherService]
+})
+export class CypherModule {}
+</file>
+
+<file path="cypher/cypher.service.ts">
+import { Injectable, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { IHedera } from '@hsuite/types';
+import { createCipheriv, createDecipheriv, randomBytes, scrypt } from 'crypto';
+import { promisify } from 'util';
+
+@Injectable()
+export class CypherService {
+    private logger: Logger = new Logger(CypherService.name);
+    private environment: string;
+    private node: IHedera.IOperator;
+
+    constructor(
+        private configService: ConfigService
+    ) {
+        this.environment = this.configService.get<string>('environment');
+        this.node = this.configService.get<IHedera.IOperator>(`${this.environment}.node`);
+    }
+
+    async encrypt(textToEncrypt: string): Promise<{
+        iv: any,
+        encryptedText: any
+    }> {
+        return new Promise(async(resolve, reject) => {
+            try {
+                const iv = randomBytes(16);
+                const key = (await promisify(scrypt)(this.node.privateKey, 'salt', 32)) as Buffer;
+                const cipher = createCipheriv('aes-256-ctr', key, iv);
+                
+                const encryptedText = Buffer.concat([
+                  cipher.update(textToEncrypt),
+                  cipher.final(),
+                ]);
+
+                resolve({
+                    iv: iv.toString('base64'),
+                    encryptedText: encryptedText.toString('base64')
+                });
+            } catch(error) {
+                reject(error);
+            }
+        })
+    }
+
+    async decrypt(encryptedText: any, iv: any): Promise<any> {
+        return new Promise(async(resolve, reject) => {
+            try {
+                const key = (await promisify(scrypt)(this.node.privateKey, 'salt', 32)) as Buffer;
+                const decipher = createDecipheriv('aes-256-ctr', key,  Buffer.from(iv, 'base64'));
+                const decryptedText = Buffer.concat([
+                  decipher.update(Buffer.from(encryptedText, 'base64')),
+                  decipher.final(),
+                ]);
+
+                resolve(decryptedText.toString());
+            } catch(error) {
+                reject(error);
+            }
+        })
+    }
+
+}
+</file>
+
+<file path="hts/dto/unfreeze-accounts.dto.ts">
+import { ApiProperty } from '@nestjs/swagger';
+
+export class UnfreezeAccountsDto {
+  @ApiProperty({
+    description: 'Array of account IDs to unfreeze',
+    type: [String],
+    example: ['0.0.xxxxxa', '0.0.xxxxxb', '0.0.xxxxxc'],
+  })
+  accountIds: string[];
+}
+</file>
+
+<file path="hts/dto/wipe-nft.dto.ts">
+import { IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty } from '@nestjs/swagger';
+
+export class WipeNftDto {
+  @ApiProperty({
+    description: 'Account ID of the NFT holder',
+    example: '0.0.12345',
+  })
+  @IsString()
+  @IsNotEmpty()
+  accountId: string;
+
+  @ApiProperty({
+    description: 'Serial number of the NFT to be wiped',
+    example: '1',
+  })
+  @IsString()
+  @IsNotEmpty()
+  serial_number: string;
+}
+</file>
+
+<file path="hts/hts.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { HtsController } from './hts.controller';
+import { HtsService } from './hts.service';
+
+describe('HtsController', () => {
+  let controller: HtsController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [HtsController],
+      providers: [HtsService],
+    }).compile();
+
+    controller = module.get<HtsController>(HtsController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+</file>
+
+<file path="hts/hts.controller.ts">
+import { Controller, Post, Query, Body, BadRequestException, HttpException, HttpStatus } from '@nestjs/common';
+import { HtsService } from './hts.service';
+import { UnfreezeAccountsDto } from './dto/unfreeze-accounts.dto';
+import { WipeNftDto } from './dto/wipe-nft.dto'; // Import the WipeNftDto
+import { ApiTags, ApiQuery, ApiBody, ApiResponse, ApiOperation } from '@nestjs/swagger';
+
+@ApiTags('HTS') // Swagger tag for grouping
+@Controller('hts')
+export class HtsController {
+  constructor(private readonly htsService: HtsService) {}
+
+  @Post('unfreeze')
+  @ApiBody({
+    description: 'List of account IDs to unfreeze',
+    type: UnfreezeAccountsDto,
+  })
+  @ApiResponse({ status: 200, description: 'Successfully unfroze the accounts.' })
+  @ApiResponse({ status: 400, description: 'Invalid input data or request.' })
+  async unfreezeAccounts(
+    @Body() body: UnfreezeAccountsDto,
+  ): Promise<{ success: boolean; message: object }> {
+    if (!body || !body.accountIds || !Array.isArray(body.accountIds)) {
+      throw new BadRequestException('Account IDs must be provided as an array in the request body');
+    }
+
+    try {
+      const result = await this.htsService.unfreezeAccounts(body.accountIds);
+      return {
+        success: true,
+        message: result,
+      };
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @Post('wipe')
+  @ApiOperation({ summary: 'Wipe an NFT from an account' })
+  @ApiQuery({
+    name: 'accountId',
+    description: 'Account ID of the NFT holder',
+    example: '0.0.12345',
+    required: true,
+  })
+  @ApiQuery({
+    name: 'serial_number',
+    description: 'Serial number of the NFT to be wiped',
+    example: '1',
+    required: true,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'NFT successfully wiped',
+    schema: {
+      example: {
+        accountId: '0.0.12345',
+        serial_number: '1',
+        status: 'success',
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input data or request.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  async wipeNft(
+    @Query('accountId') accountId: string,
+    @Query('serial_number') serialNumber: string,
+  ): Promise<{ accountId: string; serial_number: string; status: 'success' | 'failed'; error?: string }> {
+    if (!accountId || !serialNumber) {
+      throw new BadRequestException('accountId and serial_number are required');
+    }
+
+    try {
+      const result = await this.htsService.wipeNft(accountId, serialNumber);
+      return {
+        accountId,
+        serial_number: serialNumber,
+        status: result.status,
+      };
+    } catch (error) {
+      throw new HttpException(
+        {
+          accountId,
+          serial_number: serialNumber,
+          status: 'failed',
+          message: error.message || 'An error occurred while wiping the NFT',
+        },
+        error instanceof HttpException ? error.getStatus() : HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
+}
+</file>
+
+<file path="hts/hts.module.ts">
+import { Module } from '@nestjs/common';
+import { HtsService } from './hts.service';
+import { HtsController } from './hts.controller';
+import { HttpModule } from '@nestjs/axios';
+import { SmartConfigModule } from '@hsuite/smart-config';
+
+@Module({
+  imports: [HttpModule,SmartConfigModule],
+  providers: [HtsService],
+  controllers: [HtsController],
+  exports: [HtsService]
+})
+export class HtsModule {}
+</file>
+
+<file path="hts/hts.service.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { HtsService } from './hts.service';
+
+describe('HtsService', () => {
+  let service: HtsService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [HtsService],
+    }).compile();
+
+    service = module.get<HtsService>(HtsService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+</file>
+
+<file path="hts/hts.service.ts">
+import {Injectable, Logger} from '@nestjs/common';
+import {Client, TokenUnfreezeTransaction, PrivateKey, LedgerId, Transaction, Status} from '@hashgraph/sdk';
+import {ClientService} from '@hsuite/client';
+import {SmartConfigService} from '@hsuite/smart-config';
+import {ConfigService} from '@nestjs/config';
+import {WalletsService} from 'src/wallets/wallets.service';
+import {HttpService} from '@nestjs/axios';
+import {IHedera} from '@hsuite/types';
+import {HederaClientHelper} from '@hsuite/helpers';
+import {AxiosError} from 'axios';
+
+@Injectable()
+export class HtsService {
+    private readonly logger = new Logger(HtsService.name);
+    private environment: string;
+    private node: IHedera.IOperator;
+    private hederaClient: HederaClientHelper;
+
+    constructor(
+        private readonly nodeClientService: ClientService,
+        private smartConfigService: SmartConfigService,
+        private configService: ConfigService
+
+    ) {
+        this.environment = this.configService.get<string>('environment');
+        this.node = this.configService.get<IHedera.IOperator>(`${this.environment}.node`);
+        this.hederaClient = new HederaClientHelper(
+            LedgerId.fromString(this.smartConfigService.getEnvironment()),
+            this.smartConfigService.getOperator(),
+            this.smartConfigService.getMirrorNode()
+        );
+    }
+
+
+    async unfreezeAccounts(accountIds: string[]): Promise<{accountId: string; status: 'success' | 'failed'; error?: string}[]> {
+        const results: {accountId: string; status: 'success' | 'failed'; error?: string}[] = [];
+        const tokenId = this.configService.get<string>(`${this.environment}.tokenId`);
+        for (const accountId of accountIds) {
+            try {
+                // SMART-NODE CALL: asking the smart-nodes to unfreeze the token for this account
+                let sendBytes = (await this.nodeClientService.axios.post(
+                    `/hts/unfreeze/${tokenId}`, {
+                    walletId: accountId,
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+                const client = this.hederaClient.getClient();
+
+                // Signing the transaction
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // Submitting the transaction
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+
+
+                // Add successful result
+                results.push({accountId, status: receipt.status === Status.Success ? 'success' : 'failed'});
+
+                this.logger.log({
+                    msg: 'Token unfroze successfully',
+                    accountId: accountId,
+                    tokenId: tokenId
+                });
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error unfreezing token',
+                    accountId: accountId,
+                    tokenId: tokenId,
+                    error: error?.message,
+                    method: 'HtsService.unfreezeAccounts()'
+                }); results.push({
+                    accountId,
+                    status: 'failed',
+                    error: error.message,
+                });
+            }
+        }
+        this.logger.log({
+            msg: 'Unfreeze accounts process completed',
+            totalAccounts: accountIds.length,
+        });
+        return results;
+    }
+
+    async wipeNft(
+        accountId: string,
+        serial_number: string
+    ): Promise<{accountId: string; status: 'success' | 'failed'; error?: string}> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const tokenId = this.configService.get<string>(`${this.environment}.tokenId`);
+
+                // SMART-NODE CALL: asking the smart-nodes to send the nft...
+                let sendBytes = (await this.nodeClientService.axios.post(
+                    `/hts/wipe/nft`, {
+                    token_id: tokenId,
+                    serial_number: serial_number,
+                    account_id: accountId
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network...
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+                const client = this.hederaClient.getClient();
+
+                // signing and submitting the transaction...
+                // NOTE: the identityTokenID has been created by the same operator of this smart-app, so we can use the same private key.
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // submitting the transaction...
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'NFT wiped successfully',
+                        accountId: accountId,
+                        serialNumber: serial_number,
+                        tokenId: tokenId
+                    });
+                    resolve({accountId, status: 'success'});
+
+                } else {
+                    this.logger.error({
+                        msg: 'NFT wipe transaction failed',
+                        accountId: accountId,
+                        serialNumber: serial_number,
+                        tokenId: tokenId
+                    });
+                    reject('Transaction failed');
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error wiping NFT',
+                    accountId: accountId,
+                    serialNumber: serial_number,
+                    error: error?.message,
+                    method: 'HtsService.wipeNft()'
+                });
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+}
+</file>
+
+<file path="identities/credentials/entities/credential.entity.ts">
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ApiProperty } from '@nestjs/swagger';
+import { Document } from 'mongoose';
+
+export enum IDCredentialStatus {
+    PENDING = 'pending',
+    MINTED = 'minted',
+    BURNED = 'burned',
+    DELIVERED = 'delivered',
+    ACTIVE = "active",
+    RESUMED = "resumed",
+    SUSPENDED = "suspended",
+    REVOKED = "revoked",
+    EXPIRED = "expired"
+}
+
+export enum ChainVCStatus {
+    ACTIVE = "active",
+    RESUMED = "resumed",
+    SUSPENDED = "suspended",
+    REVOKED = "revoked",
+    EXPIRED = "expired"
+  }
+
+export type IDCredentialDocument = IDCredential & Document;
+
+@Schema({
+    timestamps: true,
+    collection: 'did_credentials'
+})
+export class IDCredential {
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The owner of the VC'
+    })
+    owner: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The issuer of the VC'
+    })
+    issuer: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The VC FileID'
+    })
+    file_id: string
+
+    @Prop({
+        required: true,
+        type: Number,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: Number,
+        description: 'The VC FileIndex'
+    })
+    file_index: number
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The serial number'
+    })
+    serial_number: string
+
+    @Prop({
+        required: false,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The iv of the encrypted metadata'
+    })
+    iv: string    
+
+    @Prop({
+        required: true,
+        type: String,
+        enum: IDCredentialStatus,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        enum: IDCredentialStatus,
+        description: 'The internal status of the VC'
+    })
+    internal_status: string
+
+    @Prop({
+        required: true,
+        type: String,
+        enum: ChainVCStatus,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        enum: ChainVCStatus,
+        description: 'The on-chain status of the VC'
+    })
+    chain_status: string
+
+    @Prop({
+        required: true,
+        type: Date
+    })
+    @ApiProperty({
+        required: true,
+        type: Date,
+        description: 'The expiration of the VC'
+    })
+    expiration_date: Date
+}
+
+export const IDCredentialSchema = SchemaFactory.createForClass(IDCredential);
+</file>
+
+<file path="identities/credentials/guards/issuer.guard.ts">
+import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
+import { CredentialsService } from '../credentials.service';
+
+@Injectable()
+export class IssuerAuthGuard implements CanActivate {
+  constructor(
+    private credentialsService: CredentialsService
+  ) {}
+
+  async canActivate(
+    context: ExecutionContext,
+  ): Promise<boolean> {
+    const request = context.switchToHttp().getRequest();
+
+    if(!['admin', 'issuer'].includes(request.user.role)) {
+      throw new UnauthorizedException('Sorry, only admin or issuer can issue a VC.');
+    }
+
+    if(request.user.role === 'issuer') {
+      try {
+        await this.credentialsService.getIssuerForOwner(request.user._id);
+      } catch(error) {
+          throw new UnauthorizedException(error.message);
+      }
+    }
+
+    return true;
+  }
+}
+</file>
+
+<file path="identities/credentials/credentials.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { CredentialsController } from './credentials.controller';
+import { CredentialsService } from './credentials.service';
+
+describe('CredentialsController', () => {
+  let controller: CredentialsController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [CredentialsController],
+      providers: [CredentialsService],
+    }).compile();
+
+    controller = module.get<CredentialsController>(CredentialsController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+</file>
+
+<file path="identities/credentials/credentials.controller.ts">
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Put,
+  Query,
+  Req
+} from '@nestjs/common';
+import {
+  ApiBadRequestResponse,
+  ApiBody,
+  ApiNotFoundResponse,
+  ApiOkResponse,
+  ApiOperation,
+  ApiParam,
+  ApiProperty,
+  ApiQuery,
+  ApiTags
+} from '@nestjs/swagger';
+import { CredentialsService } from './credentials.service';
+import { ChainVCStatus, IDCredential, IDCredentialDocument } from './entities/credential.entity';
+import { Verifiable, W3CCredential } from "did-jwt-vc"
+import { Hedera } from '@hsuite/types';
+
+export class VCStatusChange {
+  @ApiProperty({
+    type: String,
+    enum: ChainVCStatus,
+    description: "The VC status change"
+  })
+  status: ChainVCStatus
+}
+
+export class VCIssuerMetadataPayload {
+  @ApiProperty({
+    type: String,
+    description: "The metadata for the VC NFT base64 encoded"
+  })
+  base64metadata: string
+
+  @ApiProperty({
+    type: String,
+    description: "The expiration date of the VC, in unix timestamp format"
+  })
+  expiration_date: string
+}
+
+@Controller()
+@ApiTags('identities')
+export class CredentialsController {
+  constructor(private readonly credentialsService: CredentialsService) { }
+
+  @ApiOperation({
+    summary: 'create a VC for a given userID.',
+    description: `this endpoint will issue a VC for a given userID. 
+      </br>The VC Issuer will be the logged in user executing the request.
+      </br>The logged in user must have a 'issuer' (or 'admin') role to execute this request, and must be whitelisted to issue a VC.`
+  })
+  @ApiOkResponse({
+    type: IDCredential,
+    isArray: false,
+    status: 200,
+    description: "Returns a IDCredential object."
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The userId you want to issue a VC for.'
+  })
+  @ApiParam({
+    name: 'issuerId',
+    required: true,
+    type: 'string',
+    description: 'The issuerId of the VC.'
+  })
+  @ApiBody({
+    type: VCIssuerMetadataPayload,
+    isArray: false,
+    description: "The VCIssuerMetadataPayload body"
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post(':issuerId/:userId')
+  async issueVC(
+    @Req() request,
+    @Param('userId') userId: string,
+    @Param('issuerId') issuerId: string,
+    @Body() payload: VCIssuerMetadataPayload
+  ): Promise<IDCredential> {
+    try {
+      // the payload is base64 encoded, this is an example of how to encode it correctly 
+      // before passing it to the service.
+      // let objJsonStr = JSON.stringify(payload.base64metadata);
+      // let objJsonB64 = Buffer.from(objJsonStr).toString("base64");
+      // eyJvd25lciI6Iml0J3MgbWUiLCJ3b25kZXJmdWwiOmZhbHNlLCJvdGhlcnMiOlt7ImxvdmVseSI6Im5vcCIsImFnZSI6MjR9LHsibG92ZWx5IjoieWVzIiwiYWdlIjoyOH1dfQ==
+
+      return await this.credentialsService.issueVC(request.user._id, userId, issuerId, payload.base64metadata, payload.expiration_date);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'fetch a VC status for a given userID.',
+    description: `this endpoint will fetch a VC for a given userID. 
+    </br>The VC Issuer will be the logged in user executing the request.
+    </br>The logged in user must have a 'issuer' (or 'admin') role to execute this request, and must be whitelisted to issue a VC.
+    </br>If the logged in user is a 'admin' role, they can fetch any VC.`
+  })
+  @ApiOkResponse({
+    type: Object,
+    isArray: false,
+    status: 200,
+    description: "Returns a Object object."
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The userId you want to retrieve a VC for.'
+  })
+  @ApiParam({
+    name: 'issuerId',
+    required: true,
+    type: 'string',
+    description: 'The issuerId of the VC.'
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Get(':issuerId/:userId')
+  async fetchVC(
+    @Req() request,
+    @Param('userId') userId: string,
+    @Param('issuerId') issuerId: string
+  ): Promise<Array<{
+    credential: IDCredentialDocument,
+    verifiableCredential: Verifiable<W3CCredential>
+  }>> {
+    try {
+      return await this.credentialsService.fetchVC(request.user, userId, issuerId);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'fetch a VC status for a given userID.',
+    description: 'this endpoint will fetch a VC status for a given userID.'
+  })
+  @ApiOkResponse({
+    type: Object,
+    isArray: false,
+    status: 200,
+    description: "Returns a Verifiable<W3CCredential> object."
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The userId you want to retrieve a VC for.'
+  })
+  @ApiParam({
+    name: 'issuerId',
+    required: true,
+    type: 'string',
+    description: 'The issuerId of the VC.'
+  })
+  @ApiBody({
+    type: Hedera.DID.VC.StatusChange,
+    isArray: false,
+    description: "The status change object."
+  })
+  @ApiQuery({ name: 'wipeNFT', required: false, type: Boolean, description: 'Wipe NFT WithOut Change VC' })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Put(':issuerId/:userId/:credetialId')
+  async changeVCStatus(
+    @Req() request,
+    @Param('userId') userId: string,
+    @Param('issuerId') issuerId: string,
+    @Param('credetialId') credetialId: string,
+    @Body() payload: VCStatusChange,
+    @Query('wipeNFT') wipeNFT?: string
+  ): Promise<{ _id: string, chain_status: string; internal_status: string }> {
+    const wipeNFTWithOutChangeVC = wipeNFT === 'true';
+    try {
+      return await this.credentialsService.changeVCStatus(request.user._id, userId, issuerId, credetialId, payload,wipeNFTWithOutChangeVC);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+}
+</file>
+
+<file path="identities/credentials/credentials.module.ts">
+import { Module } from '@nestjs/common';
+import { CredentialsService } from './credentials.service';
+import { CredentialsController } from './credentials.controller';
+import { SmartConfigModule } from '@hsuite/smart-config';
+import { MongooseModule } from '@nestjs/mongoose';
+import { IDCredential, IDCredentialSchema } from './entities/credential.entity';
+import { WalletsModule } from 'src/wallets/wallets.module';
+import { Identity, IdentitySchema } from '../entities/identity.entity';
+import { IssuerAuthGuard } from './guards/issuer.guard';
+import { APP_GUARD } from '@nestjs/core';
+import { IDIssuer, IDIssuerSchema } from '../../issuers/entities/issuer.entity';
+import { HttpModule } from '@nestjs/axios';
+import { CypherModule } from 'src/cypher/cypher.module';
+
+@Module({
+  imports: [
+    HttpModule,
+    SmartConfigModule,
+    WalletsModule,
+    CypherModule,
+    MongooseModule.forFeature([{ name: IDCredential.name, schema:IDCredentialSchema }]),
+    MongooseModule.forFeature([{ name: IDIssuer.name, schema:IDIssuerSchema }]),
+    MongooseModule.forFeature([{ name: Identity.name, schema:IdentitySchema }])
+  ],
+  controllers: [
+    CredentialsController
+  ],
+  providers: [
+    CredentialsService,
+    {
+      provide: APP_GUARD,
+      useClass: IssuerAuthGuard
+    }
+  ],
+  exports: [
+    CredentialsService
+  ]
+})
+export class CredentialsModule {}
+</file>
+
+<file path="identities/credentials/credentials.service.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { CredentialsService } from './credentials.service';
+
+describe('CredentialsService', () => {
+  let service: CredentialsService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [CredentialsService],
+    }).compile();
+
+    service = module.get<CredentialsService>(CredentialsService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+</file>
+
+<file path="identities/credentials/credentials.service.ts">
+import {LedgerId, PrivateKey, PublicKey, Status, Transaction} from '@hashgraph/sdk';
+import {HederaClientHelper} from '@hsuite/helpers';
+import {SmartConfigService} from '@hsuite/smart-config';
+import {IHedera, ISmartNode} from '@hsuite/types';
+import {Injectable, Logger} from '@nestjs/common';
+import {ConfigService} from '@nestjs/config';
+import {InjectModel} from '@nestjs/mongoose';
+import {ChainVCStatus, IDCredential, IDCredentialDocument, IDCredentialStatus} from './entities/credential.entity';
+import {Model} from 'mongoose';
+import {WalletsService} from 'src/wallets/wallets.service';
+import {IVC} from 'src/wallets/interfaces/ivc.namespace';
+import {ClientService} from '@hsuite/client';
+import {Identity, IdentityDocument} from '../entities/identity.entity';
+import {Verifiable, W3CCredential} from "did-jwt-vc"
+import {AxiosError} from 'axios';
+import {IDIssuer, IDIssuerDocument} from '../../issuers/entities/issuer.entity';
+import {UserDocument} from '@hsuite/users';
+import {HttpService} from '@nestjs/axios';
+import {Hashing} from '@hsuite/did-sdk-js';
+import {VCStatusChange} from './credentials.controller';
+import {CypherService} from 'src/cypher/cypher.service';
+import {DiscordLogger} from 'src/common/logger/discord-logger.service';
+
+export const VcSlStatus = {
+    ACTIVE: 0,
+    RESUMED: 1,
+    SUSPENDED: 2,
+    REVOKED: 3,
+};
+
+@Injectable()
+export class CredentialsService {
+    private logger: Logger = new Logger(CredentialsService.name);
+    private environment: string;
+    private node: IHedera.IOperator;
+    private hederaClient: HederaClientHelper;
+    private pinata = {
+        baseUrl: 'https://api.pinata.cloud/',
+        pinEndPoint: 'pinning/pinJSONToIPFS',
+        unpinEndPoint: 'pinning/unpin',
+    };
+
+    private pinataAuth = {
+        jwt: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIxNDZlZDNkZi04MWIyLTQwZTAtYThiYS1iOWMwZmM4N2YwZWUiLCJlbWFpbCI6ImRldmVsb3BlcnNAc2NpY29tLmNvbS5teSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImlkIjoiRlJBMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfSx7ImlkIjoiTllDMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiI4MDFhNWM5MGU2MjYwYTIwYmY5NCIsInNjb3BlZEtleVNlY3JldCI6IjExYzVkODM5ZDM5ZWY0OTBhYzcxYTlkNTIzNmZmNWQ0NDgzODlkY2RiMWY0ZDc1YWQyM2RiMTc4MmMwMDE0ZWYiLCJpYXQiOjE3MTU3Njg3MTJ9.bckOLAGNj9n_qIyIJNbl_mN3uMcJ31u7HPgkp4cQAQQ'
+    };
+
+    constructor(
+        private readonly nodeClientService: ClientService,
+        private smartConfigService: SmartConfigService,
+        private configService: ConfigService,
+        private walletsService: WalletsService,
+        private httpService: HttpService,
+        private cypherService: CypherService,
+        private discordLogger: DiscordLogger,
+        @InjectModel(IDCredential.name) private credentialModel: Model<IDCredentialDocument>,
+        @InjectModel(IDIssuer.name) private issuerModel: Model<IDIssuerDocument>,
+        @InjectModel(Identity.name) private identityModel: Model<IdentityDocument>
+    ) {
+        this.environment = this.configService.get<string>('environment');
+        this.node = this.configService.get<IHedera.IOperator>(`${this.environment}.node`);
+
+        this.hederaClient = new HederaClientHelper(
+            LedgerId.fromString(this.smartConfigService.getEnvironment()),
+            this.smartConfigService.getOperator(),
+            this.smartConfigService.getMirrorNode()
+        );
+    }
+
+    private async getIdentityForUser(
+        userId: string
+    ): Promise<IdentityDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                let identity: IdentityDocument = await this.identityModel.findOne({
+                    owner: userId
+                });
+
+                if (!identity) {
+                    const publicKeyMultibase = Hashing.multibase.encode(
+                        PublicKey.fromString(this.node.publicKey).toBytes()
+                    );
+
+                    let did: IHedera.IDID.IDocument.IInfo = (await this.nodeClientService.axios.post(
+                        `/did`, {
+                        publicKeyMultibase: publicKeyMultibase
+                    })).data;
+
+                    identity = await this.identityModel.create({
+                        did_id: did.id,
+                        owner: userId
+                    });
+                }
+
+                resolve(identity);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error fetching user identity',
+                    userId: userId,
+                    error: error.message,
+                    method: 'CredentialsService.getIdentityForUser()',
+                    stack: error.stack
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async getIssuerForOwner(
+        ownerId: string,
+        issuerId?: string
+    ): Promise<IDIssuer> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                let filters = {
+                    owner: ownerId
+                }
+
+                if (issuerId) {
+                    filters['issuer'] = issuerId;
+                }
+
+                let issuer: IDIssuer = await this.issuerModel.findOne(filters);
+
+                if (!issuer) {
+                    this.logger.error({
+                        msg: 'No issuer found',
+                        ownerId: ownerId,
+                        issuerId: issuerId
+                    });
+                    throw new Error('IDIssuer not found.');
+                }
+
+                resolve(issuer);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error fetching issuer',
+                    ownerId: ownerId,
+                    issuerId: issuerId,
+                    error: error.message,
+                    method: 'CredentialsService.getIssuerForOwner()',
+                    stack: error.stack
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async changeVCStatus(
+        sessionId: string,
+        userId: string,
+        issuerId: string,
+        credetialId: string,
+        payload: VCStatusChange,
+        wipeNFTWithOutChangeVC: boolean
+    ): Promise<{_id: string, internal_status: string, chain_status: string;}> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log(`Attempting to change VC status for credential ${credetialId}`);
+
+                let issuer: IDIssuer = await this.getIssuerForOwner(sessionId, issuerId);
+
+                let credential: IDCredentialDocument = await this.credentialModel.findById(credetialId);
+
+                if (!credential) {
+                    this.logger.warn(`No active credential found for ID ${credetialId}`);
+
+                    throw new Error(`User does not have an active credential issued by ${issuer.issuer}`);
+                }
+
+                // SMART-NODE CALL: asking the smart-nodes to change the status of VC document...
+                if (!wipeNFTWithOutChangeVC) {
+                    let verifiableCredential: Verifiable<W3CCredential> = (await this.nodeClientService.axios.put(
+                        `/did/status/${credential.file_id}/${credential.file_index}`, {
+                        status: payload.status != ChainVCStatus.EXPIRED ? payload.status : ChainVCStatus.REVOKED
+                    })).data;
+                }
+                let fileIdStatus = await this.nodeClientService.axios.get(`/did/status/${credential.file_id}`)
+                let status = await this.decodeVCStatus(fileIdStatus.data.credentialSubject.encodedList, credential.file_index)
+
+                // in case the VC has been revoked, we need to unfreeze and burn the NFT...
+                if (payload.status == ChainVCStatus.REVOKED) {
+                    credential = await this.unfreezeNft(credential, issuer);
+                    credential = await this.wipeNft(credential, issuer);
+                    credential = await this.freezeNft(credential, issuer);
+                }
+                // credential.chain_status = payload.status;
+                if (!wipeNFTWithOutChangeVC) {
+                    credential.chain_status = status.toLowerCase();
+                } else {
+                    credential.chain_status = payload.status;
+                }
+                credential.markModified('chain_status');
+
+                // if(payload.status == ChainVCStatus.EXPIRED) {
+                credential.internal_status = payload.status;
+                credential.markModified('internal_status');
+                // }
+
+                await credential.save();
+                this.logger.log(`Credential status updated successfully`);
+
+                const status_return = {
+                    _id: credetialId,
+                    internal_status: credential.internal_status,
+                    chain_status: credential.chain_status,
+
+                };
+                console.log(credential)
+                console.log(status_return)
+                resolve(status_return);
+            } catch (error) {
+                this.logger.error(`Error in changeVCStatus: ${error.message}`, error.stack);
+
+                await this.discordLogger.error(`changeVCStatus error: ${error.message}`, error.stack, 'CredentialsService.changeVCStatus');
+
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        })
+    }
+
+    async decodeVCStatus(encodedList: string, vcStatusListIndex: number): Promise<string> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                const rl = require("vc-revocation-list");
+                const decodedStatusList = await rl.decodeList({
+                    encodedList: encodedList,
+                });
+
+                const firstBit = Number(decodedStatusList.isRevoked(vcStatusListIndex)).toString();
+                const secondBit = Number(decodedStatusList.isRevoked(vcStatusListIndex + 1)).toString();
+
+                const statusIndex = parseInt(`${firstBit}${secondBit}`, 2);
+                const status = Object.keys(VcSlStatus).find((key) => VcSlStatus[key] === statusIndex);
+                this.logger.log({
+                    msg: 'VC status decoded',
+                    status: status
+                });
+                resolve(status);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error decoding VC status',
+                    encodedListLength: encodedList.length,
+                    vcStatusListIndex: vcStatusListIndex,
+                    error: error.message,
+                    method: 'CredentialsService.decodeVCStatus()',
+                    stack: error.stack
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async fetchVC(
+        issuerSession: UserDocument,
+        userId: string,
+        issuerId: string
+    ): Promise<Array<{
+        credential: IDCredentialDocument,
+        verifiableCredential: Verifiable<W3CCredential>
+    }>> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log({
+                    msg: 'Fetching verifiable credentials',
+                    userId: userId,
+                    issuerId: issuerId,
+                    issuerRole: issuerSession.role
+                });
+                let issuer: IDIssuer = await this.getIssuerForOwner(<string>issuerSession._id, issuerId);
+
+                let filters = {
+                    owner: userId
+                }
+
+                if (issuerSession.role != 'admin') {
+                    filters['issuer'] = issuer.issuer;
+                }
+
+                let credentials: Array<IDCredentialDocument> = await this.credentialModel.find(filters);
+
+                if (!credentials || credentials.length == 0) {
+                    throw new Error(`User does not have an active credential issued by ${issuer.issuer}`);
+                }
+
+                let verifiableCredentialsRequests = credentials.map(credential =>
+                    this.nodeClientService.axios.get(`/did/status/${credential.file_id}`));
+
+                let verifiableCredentialsResponses = await Promise.all(verifiableCredentialsRequests);
+
+                let credentialsStatusRequests = verifiableCredentialsResponses.map((response, index) =>
+                    this.decodeVCStatus(response.data.credentialSubject.encodedList, credentials[index].file_index));
+                let credentialsStatusResponses = await Promise.all(credentialsStatusRequests);
+
+                let verifiableCredentials = verifiableCredentialsResponses.map((response: any, index) => {
+                    credentials[index].chain_status = credentialsStatusResponses[index];
+                    this.logger.log({
+                        msg: 'Verifiable credentials fetched',
+                        credentialsCount: verifiableCredentials.length
+                    });
+                    return {
+                        credential: credentials[index],
+                        verifiableCredential: response.data
+                    }
+                });
+
+                resolve(verifiableCredentials);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error fetching verifiable credentials',
+                    userId: userId,
+                    issuerId: issuerId,
+                    error: error.message,
+                    method: 'CredentialsService.fetchVC()',
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`fetchVC error: ${error.message}`, error.stack, 'CredentialsService.fetchVC');
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        })
+    }
+
+    async issueVC(
+        sessionId: string,
+        userId: string,
+        issuerId: string,
+        base64metadata: string,
+        expiration_date: string
+    ): Promise<IDCredential> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log({
+                    msg: 'Issuing Verifiable Credential',
+                    userId: userId,
+                    issuerId: issuerId,
+                    expirationDate: expiration_date
+                });
+                let issuer: IDIssuer = await this.getIssuerForOwner(sessionId, issuerId);
+                let identity: IdentityDocument = await this.getIdentityForUser(userId);
+
+                // checking if the user already has an pending VC for that issuer
+                // so to allow the recovery of a failed VC...
+                let credential: IDCredentialDocument = await this.credentialModel.findOne({
+                    owner: userId,
+                    issuer: issuer.issuer,
+                    chain_status: 'active',
+                    internal_status: {$in: [IDCredentialStatus.PENDING, IDCredentialStatus.MINTED, IDCredentialStatus.DELIVERED, IDCredentialStatus.ACTIVE]}
+                });
+
+                //if the user already has an active credential, we throw an error... ()
+                if (credential && credential.internal_status == IDCredentialStatus.ACTIVE) {
+                    this.logger.warn(`User already has an active credential with issuer ${issuer.issuer}.`);
+                    resolve(credential.toJSON());
+                    // throw new Error(`User already has an active credential with issuer ${issuer.issuer}.`);
+                }
+
+                // if the user does not have an identity, we create a new one...
+                if (!credential) {
+                    // associate the user WalletID with the IDIssuer's NFT...
+                    // try {
+                    //     await this.associateNFT(userId, issuer.nftID);
+                    // } catch (error) {
+                    //     if (!error.message.includes('TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT')) {
+                    //         throw new Error('Failed to associate NFT.');
+                    //     }
+                    // }
+
+                    // if the user does not have an identity, we create a new one...
+                    credential = await this.registerVC(userId, issuer, expiration_date);
+                    identity.credentials.push(<IDCredential>credential._id);
+                    identity.markModified('credentials');
+                    await identity.save();
+
+                    // minting the nft...
+                    credential = await this.mintNft(credential, issuer, base64metadata, userId);
+
+                    // trying to unfreeze the nft, in case it is already frozen...
+
+                    await this.unfreezeNft(credential, issuer);
+
+
+                    // send the nft to the user wallet...
+                    credential = await this.sendNft(credential, issuer);
+
+                    // freezing the nft into the user wallet...
+                    credential = await this.freezeNft(credential, issuer);
+                }
+                // if the user has an identity, but it is not active, we try to mint/deliver the nft again...
+                else {
+                    switch (credential.internal_status) {
+                        case IDCredentialStatus.PENDING:
+                            // minting the nft...
+                            credential = await this.mintNft(credential, issuer, base64metadata, userId);
+
+                            // trying to unfreeze the nft, in case it is already frozen...
+
+                            await this.unfreezeNft(credential, issuer);
+
+
+                            // send the nft to the user wallet...
+                            credential = await this.sendNft(credential, issuer);
+                            // freezing the nft into the user wallet...
+                            credential = await this.freezeNft(credential, issuer);
+                            credential;
+                        case IDCredentialStatus.MINTED:
+                            await this.unfreezeNft(credential, issuer);
+
+
+                            // send the nft to the user wallet...
+                            credential = await this.sendNft(credential, issuer);
+                            // freezing the nft into the user wallet...
+                            credential = await this.freezeNft(credential, issuer);
+                            break;
+                        case IDCredentialStatus.DELIVERED:
+                            // freezing the nft into the user wallet...
+                            credential = await this.freezeNft(credential, issuer);
+                            break;
+                    }
+                }
+
+                resolve(credential.toJSON());
+            } catch (error) {
+                this.logger.error({
+                    message: 'Error in issueVC',
+                    userId: userId,
+                    issuerId: issuerId,
+                    error: error.message
+                });
+
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+                await this.discordLogger.error(`issueVC error: ${error.message} for user ${userId}`, error.stack, 'CredentialsService.issueVC()');
+            }
+        })
+    }
+
+    async registerVC(
+        userId: string,
+        issuer: IDIssuer,
+        expiration_date: string
+    ): Promise<IDCredentialDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log({
+                    msg: 'Registering new VC',
+                    userId: userId,
+                    issuer: issuer.issuer,
+                    expirationDate: expiration_date
+                });
+
+                // SMART-NODE CALL: asking the smart-nodes to register the VC document...
+                let register: IHedera.IDID.IVC.IList.IResponse = (await this.nodeClientService.axios.post(
+                    `/did/register`, {
+                    issuerDID: `${issuer.did_id}#key-1`,
+                })).data;
+
+                let credential: IDCredentialDocument = await this.credentialModel.create({
+                    owner: userId,
+                    issuer: issuer.issuer,
+                    file_id: register.fileId,
+                    file_index: register.statusInfo.statusListIndex,
+                    serial_number: 'to_be_minted',
+                    iv: null,
+                    internal_status: IDCredentialStatus.PENDING,
+                    chain_status: ChainVCStatus.ACTIVE,
+                    expiration_date: new Date(Number(expiration_date))
+                });
+                this.logger.log({
+                    msg: 'VC registered successfully',
+                    credentialId: credential._id,
+                    fileId: credential.file_id
+                });
+                resolve(credential);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error registering VC',
+                    userId: userId,
+                    issuer: issuer.issuer,
+                    error: error.message,
+                    method: 'CredentialsService.registerVC()',
+                    stack: error.stack
+                });
+                if (error.message.includes('All promises were rejected')) {
+                    console.log("All promises were rejected")
+                } else {
+                    await this.discordLogger.error(`registerVC error: ${error.message} for user ${userId}`, error.stack, 'CredentialsService.registerVC()');
+                }
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+
+    private async associateNFT(
+        userId: string,
+        nftId: string
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log({
+                    msg: 'Associating NFT',
+                    userId: userId,
+                    nftId: nftId
+                });
+                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(userId);
+
+                if (!wallet) {
+                    throw new Error('User does not have a wallet.');
+                }
+
+                let associate: ISmartNode.ISmartTransaction.IDetails = await this.walletsService.associateToken({
+                    walletId: wallet.id,
+                    tokenId: nftId
+                });
+                this.logger.log({
+                    msg: 'NFT associated successfully',
+                    userId: userId,
+                    nftId: nftId,
+                    walletId: wallet.id
+                });
+                resolve(associate);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error associating NFT',
+                    userId: userId,
+                    nftId: nftId,
+                    error: error.message,
+                    method: 'CredentialsService.associateNFT()',
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`associateNFT error: ${error.message} for user ${userId}`, error.stack, 'CredentialsService.associateNFT()');
+                reject(error);
+            }
+        });
+    }
+
+    private async mintNft(
+        credential: IDCredentialDocument,
+        issuer: IDIssuer,
+        base64metadata: string,
+        owner: string
+    ): Promise<IDCredentialDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log({
+                    msg: 'Minting NFT',
+                    credentialOwner: owner,
+                    issuer: issuer.issuer
+                });
+                const metadata = Buffer.from(base64metadata, 'base64').toString();
+                const vcMetadata = JSON.parse(metadata);
+                const encoded = await this.cypherService.encrypt(JSON.stringify(vcMetadata));
+
+                const nftMetadata = {
+                    name: `iKad - Verifiable Credential`,
+                    description: `International Student Identity Card issued by Education Malaysia Global Services (EMGS)`,
+                    creator: 'EMGS',
+                    properties: {
+                        encryptedText: encoded.encryptedText
+                    },
+                    image: issuer.imageCID
+                }
+                // Add custom metadata
+                const pinatametadata = JSON.stringify({
+                    name: owner,  // This sets the custom file name
+                });
+                let pinataData = JSON.stringify({
+                    "pinataOptions": {
+                        "cidVersion": 0
+                    },
+                    "pinataMetadata": pinatametadata,
+                    "pinataContent": nftMetadata
+                });
+
+                let response = await this.httpService.post(
+                    `${this.pinata.baseUrl}${this.pinata.pinEndPoint}`,
+                    pinataData,
+                    {
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${this.pinataAuth.jwt}`
+                        }
+                    }).toPromise();
+
+                // SMART-NODE CALL: asking the smart-nodes to mint the nft...
+                let mintBytes = (await this.nodeClientService.axios.post(
+                    `/hts/mint/nft`, {
+                    token_id: issuer.nftID,
+                    cid: `ipfs://${response.data.IpfsHash}`
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network...
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(mintBytes)));
+                const client = this.hederaClient.getClient();
+
+                // signing and submitting the transaction...
+                // NOTE: the identityTokenID has been created by the same operator of this smart-app, so we can use the same private key.
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // submitting the transaction...
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    credential.iv = encoded.iv;
+                    credential.markModified('iv');
+
+                    credential.serial_number = receipt.serials.toString();
+                    credential.markModified('serial_number');
+
+                    credential.internal_status = IDCredentialStatus.MINTED;
+                    credential.markModified('status');
+
+                    await credential.save();
+
+                    this.logger.log({
+                        msg: 'NFT minted successfully',
+                        credentialOwner: credential.owner,
+                        serialNumber: credential.serial_number,
+                        ipfsHash: response.data.IpfsHash
+                    });
+                    resolve(credential);
+                } else {
+                    reject('Transaction failed');
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error minting NFT',
+                    credentialOwner: credential.owner,
+                    issuer: issuer.issuer,
+                    error: error.message,
+                    method: 'CredentialsService.mintNft()',
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`mintNft error: ${error.message} for user ${credential.owner}`, error.stack, 'CredentialsService.mintNft()');
+
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        })
+    }
+
+    private async sendNft(
+        credential: IDCredentialDocument,
+        issuer: IDIssuer
+    ): Promise<IDCredentialDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                this.logger.log({
+                    msg: 'Sending NFT',
+                    credentialOwner: credential.owner,
+                    issuer: issuer.issuer,
+                    serialNumber: credential.serial_number
+                });
+
+                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(credential.owner);
+                if (!wallet) {
+                    throw new Error('User does not have a wallet.');
+                }
+                let nftInfo = await this.walletsService.getNftInfo(issuer.nftID, credential.serial_number);
+
+                if (nftInfo && nftInfo.account_id == wallet.id) {
+
+                    console.log('NFT already in the student wallet');
+                    credential.internal_status = IDCredentialStatus.DELIVERED;
+                    credential.markModified('status');
+
+                    await credential.save();
+                    resolve(credential);
+                } else {
+                    console.log('NFT in the tressury wallet');
+                }
+
+                if (wallet.balance.tokens.length > 10) {
+                    try {
+                        await this.associateNFT(credential.owner, issuer.nftID);
+                    } catch (error) {
+                        if (!error.message.includes('TOKEN_ALREADY_ASSOCIATED_TO_ACCOUNT')) {
+                            throw new Error('Failed to associate NFT.');
+                        }
+                    }
+                }
+
+
+                // SMART-NODE CALL: asking the smart-nodes to send the nft...
+                let sendBytes = (await this.nodeClientService.axios.post(
+                    `/hts/transfer/nft`, {
+                    nft: issuer.nftID,
+                    sender: this.node.accountId,
+                    receiver: wallet.id,
+                    serial_number: credential.serial_number,
+                    memo: `${issuer.issuer} - Identity NFT transfer to ${wallet.id} #${credential.serial_number}.`
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network...
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+                const client = this.hederaClient.getClient();
+
+                // signing and submitting the transaction...
+                // NOTE: the identityTokenID has been created by the same operator of this smart-app, so we can use the same private key.
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // submitting the transaction...
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'NFT sent successfully',
+                        credentialOwner: credential.owner,
+                        issuer: issuer.issuer,
+                        serialNumber: credential.serial_number,
+                        transactionId: submitTx.transactionId.toString()
+                    });
+
+                    credential.internal_status = IDCredentialStatus.DELIVERED;
+                    credential.markModified('status');
+
+                    await credential.save();
+                    resolve(credential);
+                } else {
+                    reject('Transaction failed');
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error sending NFT',
+                    credentialOwner: credential.owner,
+                    issuer: issuer.issuer,
+                    serialNumber: credential.serial_number,
+                    error: error.message,
+                    method: 'CredentialsService.sendNft()',
+                    stack: error.stack
+                });
+                if (error.message.includes('All promises were rejected')) {
+                    console.log(error)
+                } else {
+                    await this.discordLogger.error(`sendNft() error: ${error.message} for user ${credential.owner}`, error.stack, 'CredentialsService.sendNft()');
+                }
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+
+
+    private async freezeNft(
+        credential: IDCredentialDocument,
+        issuer: IDIssuer
+    ): Promise<IDCredentialDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(credential.owner);
+                let tokenStatus = await this.walletsService.getToken(credential.owner);
+                console.info('FREEZ getToken', tokenStatus);
+                // console.info('freezeNft getToken ',credential.owner,tokenStatus.tokens[0].freeze_status);
+                if (
+                    tokenStatus &&
+                    tokenStatus.tokens &&
+                    tokenStatus.tokens.length > 0 &&
+                    'freeze_status' in tokenStatus.tokens[0] &&
+                    tokenStatus.tokens[0].freeze_status === 'FROZEN' &&
+                    tokenStatus.tokens[0].token_id === issuer.nftID
+                ) {
+                    this.logger.log(
+                        'NFT freeze_status is FROZEN for the student wallet ' + wallet.id,
+                        credential.owner
+                    );
+                    credential.internal_status = IDCredentialStatus.ACTIVE;
+                    credential.markModified('status');
+
+                    await credential.save();
+                    resolve(credential);
+                    return;
+                }
+                if (!wallet) {
+                    throw new Error('User does not have a wallet.');
+                }
+
+                // SMART-NODE CALL: asking the smart-nodes to send the nft...
+                let sendBytes = (await this.nodeClientService.axios.post(
+                    `/hts/freeze/${issuer.nftID}`, {
+                    walletId: wallet.id,
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network...
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+                const client = this.hederaClient.getClient();
+
+                // signing and submitting the transaction...
+                // NOTE: the identityTokenID has been created by the same operator of this smart-app, so we can use the same private key.
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // submitting the transaction...
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    credential.internal_status = IDCredentialStatus.ACTIVE;
+                    credential.markModified('status');
+
+                    await credential.save();
+                    resolve(credential);
+                } else {
+                    reject('Transaction failed');
+                }
+            } catch (error) {
+                this.logger.error(`freezeNft error: ${error.message} for user ${credential.owner}`, error.stack);
+                await this.discordLogger.error(`freezeNft error: ${error.message} for user ${credential.owner}`, error.stack, 'CredentialsService.freezeNft()');
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+
+    private async unfreezeNft(
+        credential: IDCredentialDocument,
+        issuer: IDIssuer
+    ): Promise<IDCredentialDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(credential.owner);
+                let tokenStatus = await this.walletsService.getToken(credential.owner);
+                console.log('UNFREEZ getToken', tokenStatus);
+                // console.log('unfreezeNft getToken',credential.owner,tokenStatus.tokens[0].freeze_status);
+                if (
+                    tokenStatus &&
+                    tokenStatus.tokens &&
+                    tokenStatus.tokens.length == 0
+                ) {
+                    this.logger.log(
+                        `UNFROZEN: TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet ${wallet.id}`,
+                        credential.owner
+                    );
+                    resolve(credential);
+                    console.log('UNFROZEN:(RESOLVED) TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet', wallet.id);
+                    return;
+                }
+                if (
+                    tokenStatus &&
+                    tokenStatus.tokens &&
+                    tokenStatus.tokens.length > 0 &&
+                    'freeze_status' in tokenStatus.tokens[0] &&
+                    tokenStatus.tokens[0].freeze_status === 'UNFROZEN' &&
+                    tokenStatus.tokens[0].token_id === issuer.nftID
+                ) {
+                    this.logger.log(
+                        `NFT freeze_status is UNFROZEN for the student wallet ${wallet.id}`,
+                        credential.owner
+                    );
+                    resolve(credential);
+                    return;
+                }
+                if (!wallet) {
+                    throw new Error('User does not have a wallet.');
+                }
+
+                // SMART-NODE CALL: asking the smart-nodes to send the nft...
+                let sendBytes = (await this.nodeClientService.axios.post(
+                    `/hts/unfreeze/${issuer.nftID}`, {
+                    walletId: wallet.id,
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network...
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+                const client = this.hederaClient.getClient();
+
+                // signing and submitting the transaction...
+                // NOTE: the identityTokenID has been created by the same operator of this smart-app, so we can use the same private key.
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // submitting the transaction...
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    resolve(credential);
+                } else {
+                    reject('Transaction failed');
+                }
+            } catch (error) {
+                if (error.message.includes('_NOT_ASSOCIATED_TO_')) {
+
+                    this.logger.log(` Resolving -- TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet ${credential.owner}`);
+                    resolve(credential);
+                    return;
+                }
+                await this.discordLogger.error(`unfreezeNft error: ${error.message} for[] user ${credential.owner}`, error.stack, 'CredentialsService.unfreezeNft()');
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+
+    private async wipeNft(
+        credential: IDCredentialDocument,
+        issuer: IDIssuer
+    ): Promise<IDCredentialDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(credential.owner);
+                if (!wallet) {
+                    throw new Error('User does not have a wallet.');
+                }
+
+                // SMART-NODE CALL: asking the smart-nodes to send the nft...
+                let sendBytes = (await this.nodeClientService.axios.post(
+                    `/hts/wipe/nft`, {
+                    token_id: issuer.nftID,
+                    serial_number: credential.serial_number,
+                    account_id: wallet.id
+                })).data;
+
+                // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network...
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+                const client = this.hederaClient.getClient();
+
+                // signing and submitting the transaction...
+                // NOTE: the identityTokenID has been created by the same operator of this smart-app, so we can use the same private key.
+                const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+                // submitting the transaction...
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'NFT wiped successfully',
+                        credentialOwner: credential.owner,
+                        issuer: issuer.issuer,
+                        serialNumber: credential.serial_number,
+                        transactionId: submitTx.transactionId.toString()
+                    });
+
+                    credential.internal_status = IDCredentialStatus.BURNED;
+                    credential.markModified('status');
+                    await credential.save();
+
+                    resolve(credential);
+                } else {
+                    reject('Transaction failed');
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error wiping NFT',
+                    credentialOwner: credential.owner,
+                    issuer: issuer.issuer,
+                    serialNumber: credential.serial_number,
+                    error: error.message,
+                    method: 'CredentialsService.wipeNft()',
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`wipeNft error: ${error.message}`, error.stack, 'CredentialsService.wipeNft()');
+                if (error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+}
+</file>
+
+<file path="identities/entities/identity.entity.ts">
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ApiProperty } from '@nestjs/swagger';
+import mongoose, { Document } from 'mongoose';
+import { IDCredential } from '../credentials/entities/credential.entity';
+
+export type IdentityDocument = Identity & Document;
+
+@Schema({
+    timestamps: true,
+    collection: 'did_identities'
+})
+export class Identity {
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The owner of the identity'
+    })
+    owner: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The DID ID'
+    })
+    did_id: string
+
+    @Prop([{
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'IDCredential'        
+    }])
+    @ApiProperty({
+        isArray: true,
+        type: IDCredential
+    })
+    credentials: Array<IDCredential>
+}
+
+export const IdentitySchema = SchemaFactory.createForClass(Identity);
+</file>
+
+<file path="identities/identities.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { IdentitiesController } from './identities.controller';
+import { IdentitiesService } from './identities.service';
+
+describe('IdentitiesController', () => {
+  let controller: IdentitiesController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [IdentitiesController],
+      providers: [IdentitiesService],
+    }).compile();
+
+    controller = module.get<IdentitiesController>(IdentitiesController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+</file>
+
+<file path="identities/identities.controller.ts">
+import { 
+  BadRequestException,
+  Controller, 
+  Get, 
+  Param, 
+  Post, 
+  Req 
+} from '@nestjs/common';
+import { 
+  ApiBadRequestResponse, 
+  ApiNotFoundResponse, 
+  ApiOkResponse, 
+  ApiOperation, 
+  ApiParam, 
+  ApiTags
+} from '@nestjs/swagger';
+import { IdentitiesService } from './identities.service';
+import { Identity, IdentityDocument } from './entities/identity.entity';
+import { Hedera, IHedera } from '@hsuite/types';
+
+@Controller()
+@ApiTags('identities')
+export class IdentitiesController {
+  constructor(private readonly identitiesService: IdentitiesService) {}
+
+  @ApiOperation({
+    summary: 'fetch the DID for a given userID.',
+    description: 'this endpoint will fetch the DID for a given userID.'
+  })
+  @ApiOkResponse({
+    type: Object,
+    isArray: false,
+    status: 200,
+    description: "Returns a Object object."
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The userId you want to fetch the DID for.'
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Get(':userId')
+  async fetchDID(
+    @Req() request,
+    @Param('userId') userId: string
+  ): Promise<{
+    identity: IdentityDocument,
+    did: Hedera.DID.Document.Info
+  }> {
+    try {
+      return await this.identitiesService.fetchDID(userId);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'create a DID for a given userID.',
+    description: 'this endpoint will create a DIDfor a given userID.'
+  })
+  @ApiOkResponse({
+    type: Identity,
+    isArray: false,
+    status: 200,
+    description: "Returns a Identity object."
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The userId you want to create a DID for.'
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post(':userId')
+  async createDID(
+    @Req() request,
+    @Param('userId') userId: string
+  ): Promise<Identity> {
+    try {
+      return await this.identitiesService.createDID(userId);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+}
+</file>
+
+<file path="identities/identities.module.ts">
+import { Module } from '@nestjs/common';
+import { IdentitiesService } from './identities.service';
+import { IdentitiesController } from './identities.controller';
+import { MongooseModule } from '@nestjs/mongoose';
+import { Identity, IdentitySchema } from './entities/identity.entity';
+import { WalletsModule } from 'src/wallets/wallets.module';
+import { CredentialsModule } from './credentials/credentials.module';
+import { RouterModule } from '@nestjs/core';
+
+@Module({
+  imports: [
+    WalletsModule,
+    CredentialsModule,
+    RouterModule.register([
+      {
+        path: 'identities',
+        module: IdentitiesModule,
+        children: [
+          {
+            path: 'credentials',
+            module: CredentialsModule
+          },
+        ]
+      }
+    ]),
+    MongooseModule.forFeature([{ name: Identity.name, schema:IdentitySchema }])
+  ],
+  controllers: [IdentitiesController],
+  providers: [IdentitiesService],
+  exports: [IdentitiesService]
+})
+export class IdentitiesModule {}
+</file>
+
+<file path="identities/identities.service.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { IdentitiesService } from './identities.service';
+
+describe('IdentitiesService', () => {
+  let service: IdentitiesService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [IdentitiesService],
+    }).compile();
+
+    service = module.get<IdentitiesService>(IdentitiesService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+</file>
+
+<file path="identities/identities.service.ts">
+import { Injectable, Logger } from '@nestjs/common';
+import { Hashing } from '@hsuite/did-sdk-js';
+import { PublicKey } from '@hashgraph/sdk';
+import { ClientService } from '@hsuite/client';
+import { ConfigService } from '@nestjs/config';
+import { Hedera, IHedera } from '@hsuite/types';
+import { InjectModel } from '@nestjs/mongoose';
+import { Identity, IdentityDocument } from './entities/identity.entity';
+import { Model } from 'mongoose';
+import { WalletsService } from 'src/wallets/wallets.service';
+import { IVC } from 'src/wallets/interfaces/ivc.namespace';
+import { AxiosError } from 'axios';
+
+@Injectable()
+export class IdentitiesService {
+    private logger: Logger = new Logger(IdentitiesService.name);
+    private environment: string;
+    private node: IHedera.IOperator;
+
+    constructor(
+        private readonly nodeClientService: ClientService,
+        private configService: ConfigService,
+        private walletsService: WalletsService,
+        @InjectModel(Identity.name) private identityModel: Model<IdentityDocument>
+    ) {
+        this.environment = this.configService.get<string>('environment');
+        this.node = this.configService.get<IHedera.IOperator>(`${this.environment}.node`);
+    }
+
+    async fetchDID(
+        userId: string
+    ): Promise<{
+        identity: IdentityDocument,
+        did: Hedera.DID.Document.Info
+    }> {
+        return new Promise(async (resolve, reject) => {
+            try {
+          
+                // checking if the user already has an identity...
+                // we filter out the revoked identities, so to allow creation of new ones...
+                let identity: IdentityDocument = await this.identityModel.findOne({
+                    owner: userId
+                });
+
+                // if the user does not have an identity, we throw an error...
+                if (!identity) {
+                    throw new Error('User does not have an identity.');
+                }
+
+                // SMART-NODE CALL: asking the smart-nodes to fetch the did document...
+                let did: IHedera.IDID.IDocument.IInfo = (await this.nodeClientService.axios.get(
+                    `/did/${identity.did_id}`)).data;
+                this.logger.log({
+                    msg: 'DID fetched successfully',
+                    userId: userId,
+                    didId: did.id
+                });
+                resolve({
+                    identity,
+                    did
+                });
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error fetching DID',
+                    userId: userId,
+                    error: error?.message,
+                    method: 'IdentitiesService.fetchDID()'
+                });
+                if(error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        })
+    }
+
+    async createDID(userId: string): Promise<IdentityDocument> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // preventing the creation of DID if the user doesn't have a wallet yet...
+                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(userId);
+
+                if (!wallet) {
+                    throw new Error('User does not have a wallet.');
+                }
+
+                let identity: IdentityDocument = await this.identityModel.findOne({
+                    owner: userId
+                });
+
+                if(identity) {
+                    throw new Error('User already has an identity.');
+                }
+
+                // right now the hahsgraph-did-sdk works only with single signature, 
+                // so we need to encode the public key of the smart-app operator in multibase format.
+                // in future we might be able to use the publicKey of the multi-sig wallet of the given userId.
+                // NOTE: this is not a security issue at all, just a limitation towards a most complete decentralization.
+                const publicKeyMultibase = Hashing.multibase.encode(
+                    PublicKey.fromString(this.node.publicKey).toBytes()
+                );
+
+                // SMART-NODE CALL: asking the smart-nodes to create the did document...
+                let did: IHedera.IDID.IDocument.IInfo = (await this.nodeClientService.axios.post(
+                    `/did`, {
+                    publicKeyMultibase: publicKeyMultibase
+                })).data;
+
+                identity = await this.identityModel.create({
+                    did_id: did.id,
+                    owner: userId
+                });
+                this.logger.log({
+                    msg: 'DID created successfully',
+                    userId: userId,
+                    didId: did.id
+                });
+                resolve(identity);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error creating DID',
+                    userId: userId,
+                    error: error?.message,
+                    method: 'IdentitiesService.createDID()'
+                });
+                
+                if(error instanceof AxiosError) {
+                    reject(new Error(error.response?.data?.message));
+                } else {
+                    reject(new Error(error.message));
+                }
+            }
+        });
+    }
+}
+</file>
+
+<file path="issuers/entities/issuer.entity.ts">
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ApiProperty } from '@nestjs/swagger';
+import { Document } from 'mongoose';
+
+export enum IDIssuerStatus {
+    PENDING = 'pending',
+    MINTED = 'minted',
+    DELIVERED = 'delivered',
+    ACTIVE = 'active'
+}
+
+export type IDIssuerDocument = IDIssuer & Document;
+
+@Schema({
+    timestamps: true,
+    collection: 'did_issuers'
+})
+export class IDIssuer {
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The UserID of the VC owner'
+    })
+    owner: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The Issuser NAme'
+    })
+    issuer: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The Issuer DID'
+    })
+    did_id: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The Issuer nftID'
+    })
+    nftID: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty({
+        required: true,
+        type: String,
+        description: 'The Issuer imageCID'
+    })
+    imageCID: string
+}
+
+export const IDIssuerSchema = SchemaFactory.createForClass(IDIssuer);
+IDIssuerSchema.index({ owner: 1, issuer: 1 }, { unique: true });
+</file>
+
+<file path="issuers/payloads/issuer.payload.ts">
+import { ApiProperty } from "@nestjs/swagger"
+
+export interface IIssuerPayload {
+    issuer: string
+    nftID: string
+    imageCID: string
+}
+
+export class IssuerPayload implements IIssuerPayload {
+    @ApiProperty({
+        type: String,
+        description: 'The Issuser Name'
+    })
+    issuer: string
+
+    @ApiProperty({
+        type: String,
+        description: 'The Issuer nftID'
+    })
+    nftID: string
+
+    @ApiProperty({
+        type: String,
+        description: 'The Issuer imageCID'
+    })
+    imageCID: string
+
+    constructor(
+        issuer: string,
+        nftID: string,
+        imageCID: string
+    ) {
+        this.issuer = issuer
+        this.nftID = nftID
+        this.imageCID = imageCID
+    }
+}
+</file>
+
+<file path="issuers/issuers.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { IssuersController } from './issuers.controller';
+import { IssuersService } from './issuers.service';
+
+describe('IssuersController', () => {
+  let controller: IssuersController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [IssuersController],
+      providers: [IssuersService],
+    }).compile();
+
+    controller = module.get<IssuersController>(IssuersController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+</file>
+
+<file path="issuers/issuers.controller.ts">
+import { 
+  BadRequestException, 
+  Body, 
+  Controller, 
+  Get, 
+  Param, 
+  Post, 
+  Put, 
+  Req 
+} from '@nestjs/common';
+import { 
+  ApiBadRequestResponse, 
+  ApiBody, 
+  ApiNotFoundResponse, 
+  ApiOkResponse, 
+  ApiOperation, 
+  ApiParam, 
+  ApiTags 
+} from '@nestjs/swagger';
+import { IssuersService } from './issuers.service';
+import { IDIssuer } from './entities/issuer.entity';
+import { IssuerPayload } from './payloads/issuer.payload';
+
+@Controller('issuers')
+@ApiTags('issuers')
+export class IssuersController {
+  constructor(private readonly issuersService: IssuersService) {}
+
+  @ApiOperation({
+    summary: 'fetch the list of Issuers from the logged session.',
+    description: 'this endpoint will return the list of Issuers from the logged in session.'
+  })
+  @ApiOkResponse({
+    type: IDIssuer,
+    isArray: true,
+    status: 200,
+    description: "Returns an array of IDIssuer objects."
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Get()
+  async getIssuers(
+    @Req() request
+  ): Promise<Array<IDIssuer>> {
+    try {
+      return await this.issuersService.getIssuers(request.user._id);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'add a new Issuer to the logged session.',
+    description: 'this endpoint will add a new Issuer to the logged in session.'
+  })
+  @ApiOkResponse({
+    type: IDIssuer,
+    isArray: false,
+    status: 200,
+    description: "Returns the newly created IDIssuer object."
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post()
+  async createIssuer(
+    @Req() request,
+    @Body() issuer: IssuerPayload
+  ): Promise<IDIssuer> {
+    try {
+      return await this.issuersService.createIssuer(request.user._id, issuer);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+}
+</file>
+
+<file path="issuers/issuers.module.ts">
+import { Module } from '@nestjs/common';
+import { IssuersService } from './issuers.service';
+import { IssuersController } from './issuers.controller';
+import { MongooseModule } from '@nestjs/mongoose';
+import { IDIssuer, IDIssuerSchema } from './entities/issuer.entity';
+
+@Module({
+  imports: [
+    MongooseModule.forFeature([{ name: IDIssuer.name, schema:IDIssuerSchema }])
+  ],
+  controllers: [
+    IssuersController
+  ],
+  providers: [
+    IssuersService
+  ],
+})
+export class IssuersModule {}
+</file>
+
+<file path="issuers/issuers.service.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { IssuersService } from './issuers.service';
+
+describe('IssuersService', () => {
+  let service: IssuersService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [IssuersService],
+    }).compile();
+
+    service = module.get<IssuersService>(IssuersService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+</file>
+
+<file path="issuers/issuers.service.ts">
+import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import { InjectModel } from '@nestjs/mongoose';
+import { IDIssuer, IDIssuerDocument } from './entities/issuer.entity';
+import { Model } from 'mongoose';
+import { IssuerPayload } from './payloads/issuer.payload';
+import { Hashing } from '@hsuite/did-sdk-js';
+import { PublicKey } from '@hashgraph/sdk';
+import { IHedera } from '@hsuite/types';
+import { ConfigService } from '@nestjs/config';
+import { ClientService } from '@hsuite/client';
+
+@Injectable()
+export class IssuersService implements OnModuleInit {
+    private logger: Logger = new Logger(IssuersService.name);
+    private node: IHedera.IOperator;
+    private environment: string;
+
+    constructor(
+        private readonly nodeClientService: ClientService,
+        private configService: ConfigService,
+        @InjectModel(IDIssuer.name) private issuerModel: Model<IDIssuerDocument>
+    ) {
+        this.environment = this.configService.get<string>('environment');
+        this.node = this.configService.get<IHedera.IOperator>(`${this.environment}.node`);
+    }
+
+    async onModuleInit(): Promise<void> {}
+
+    async getIssuers(
+        sessionId: string
+    ): Promise<Array<IDIssuer>> {
+        return new Promise(async (resolve, reject) => { 
+            try {
+                const issuers: Array<IDIssuer> = await this.issuerModel.find({ owner: sessionId }).exec();
+                resolve(issuers);
+            } catch(error) {
+                reject(error);
+            }
+        });
+    }
+
+    async createIssuer(
+        sessionId: string,
+        issuer: IssuerPayload
+    ): Promise<IDIssuer> {
+        return new Promise(async (resolve, reject) => {
+            try {
+
+                // in order to have 1 fileID for each issuer, we need to create a new DID for the issuer itself...
+                // this did_id will be saved in the DB and used to issue VCs for any credential with a custom fileID...
+                const publicKeyMultibase = Hashing.multibase.encode(
+                    PublicKey.fromString(this.node.publicKey).toBytes()
+                );
+
+                // SMART-NODE CALL: asking the smart-nodes to create the did document...
+                let did: IHedera.IDID.IDocument.IInfo = (await this.nodeClientService.axios.post(
+                    `/did`, {
+                    publicKeyMultibase: publicKeyMultibase
+                })).data;
+
+                const issuerDocument: IDIssuerDocument = await this.issuerModel.create({
+                    owner: sessionId,
+                    did_id: did.id,
+                    ...issuer
+                });
+                this.logger.log({
+                    msg: 'Issuer created successfully',
+                    sessionId: sessionId,
+                    issuerId: issuerDocument._id,
+                    issuerName: issuer.issuer
+                });
+                resolve(issuerDocument.toJSON());
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error creating issuer',
+                    sessionId: sessionId,
+                    error: error?.message,
+                    method: 'IssuersService.createIssuer()'
+                });
+                reject(error);
+            }
+        });
+    }
+}
+</file>
+
+<file path="wallets/entities/transaction.entity.ts">
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ApiProperty } from '@nestjs/swagger';
+import { Document } from 'mongoose';
+
+export type TransactionStatus = 'pending' | 'processing' | 'completed' | 'rejected';
+export type WalletTransactionDocument = WalletTransaction & Document;
+
+@Schema()
+export class WalletTransaction {
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty()
+    from: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty()
+    to: string
+
+    @Prop({
+        required: true,
+        type: Number,
+        array: false
+    })
+    @ApiProperty()
+    amount: number  
+    
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty()
+    memo: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty()
+    date: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty()
+    transaction_id: string
+
+    @Prop({
+        required: true,
+        type: String,
+        array: false
+    })
+    @ApiProperty()
+    status: TransactionStatus
+}
+
+export const WalletTransactionSchema = SchemaFactory.createForClass(WalletTransaction);
+</file>
+
+<file path="wallets/entities/wallet.entity.ts">
+import { Prop, Schema, SchemaFactory } from '@nestjs/mongoose';
+import { ApiProperty } from '@nestjs/swagger';
+import mongoose, { Document } from 'mongoose';
+import { IVC } from '../interfaces/ivc.namespace';
+import { WalletTransaction } from './transaction.entity';
+
+export type WalletDocument = Wallet & Document;
+
+@Schema()
+export class Wallet {
+    @Prop({
+        required: true,
+        type: String,
+        array: false,
+        unique: true
+    })
+    @ApiProperty()
+    owner: string
+
+    @Prop({
+        required: true,
+        type: IVC.Wallet.Entity,
+        array: false
+    })
+    @ApiProperty()
+    account: IVC.Wallet.Entity
+    
+    @Prop([{
+        type: mongoose.Schema.Types.ObjectId, 
+        ref: 'WalletTransaction'        
+    }])
+    @ApiProperty({
+        isArray: true,
+        type: WalletTransaction
+    })
+    transactions: Array<WalletTransaction>
+}
+
+export const WalletSchema = SchemaFactory.createForClass(Wallet);
+</file>
+
+<file path="wallets/interfaces/ivc.namespace.ts">
+import { IAuth, Auth, IHedera } from "@hsuite/types"
+import { WalletTransaction } from "../entities/transaction.entity"
+import { ApiProperty } from "@nestjs/swagger"
+
+// NAMESPACE FOR INTERFACES
+export namespace I_IVC {
+    export namespace IWallet {
+        export interface IEntity {
+            id: string
+            balance: IHedera.IAccountBalance
+        }
+
+        export interface IHistory extends I_IVC.IWallet.IEntity {
+            transactions: Array<WalletTransaction>
+        }
+
+        export namespace IRequest {
+            export interface IWithdrawToken {
+                id: string
+                decimals: number
+            }
+
+            export interface IWithdraw extends IAuth.ITwoFactor.ISecurity {
+                userId: string
+                amount: number
+                wallet: string
+                token: I_IVC.IWallet.IRequest.IWithdrawToken
+            }
+
+            export interface ICreate {
+                userId: string
+            }
+
+            export interface IAssociate {
+                walletId: string
+                tokenId: string                
+            }
+
+            export interface IDelete {
+                transferAccountId: string
+            }
+        }
+
+        export namespace IResponse {
+            export enum IWthdrawStatus {
+                PENDING = 'pending',
+                PROCESSING = 'processing',
+                COMPLETED = 'completed',
+                REJECTED = 'rejected'
+            }
+
+            export interface IWithdraw {
+                amount: number
+                date: number
+                transactionId: string
+                status: IWthdrawStatus
+            }
+        }
+    }
+}
+
+// NAMESPACE FOR CLASSES
+export namespace IVC {
+    export namespace Wallet {
+        export class Entity implements I_IVC.IWallet.IEntity {
+            @ApiProperty({
+                type: String,
+                description: 'The wallet ID'
+            })
+            id: string
+
+            @ApiProperty({
+                type: Object,
+                description: 'The balance of the wallet'
+            })
+            balance: IHedera.IAccountBalance
+        }
+
+        export class History extends IVC.Wallet.Entity implements I_IVC.IWallet.IHistory {
+            @ApiProperty({
+                isArray: true,
+                type: WalletTransaction,
+                description: 'The transactions of the wallet'
+            })
+            transactions: Array<WalletTransaction>
+        }
+
+        export namespace Request {
+            export class WithdrawToken implements I_IVC.IWallet.IRequest.IWithdrawToken {
+                @ApiProperty({
+                    type: String,
+                    description: 'The token ID'
+                })
+                id: string
+
+                @ApiProperty({
+                    type: Number,
+                    description: 'The decimals of the token'
+                })
+                decimals: number
+            }
+
+            export class Withdraw extends Auth.TwoFactor.Security implements I_IVC.IWallet.IRequest.IWithdraw {
+                @ApiProperty({
+                    type: String,
+                    description: 'The user ID'
+                })
+                userId: string
+
+                @ApiProperty({
+                    type: Number,
+                    description: 'The amount of the withdraw'
+                })
+                amount: number
+
+                @ApiProperty({
+                    type: String,
+                    description: 'The wallet ID'
+                })
+                wallet: string
+
+                @ApiProperty({
+                    type: WithdrawToken,
+                    description: 'The token of the withdraw'
+                })
+                token: IVC.Wallet.Request.WithdrawToken
+            }
+
+            export class Create implements I_IVC.IWallet.IRequest.ICreate {
+                @ApiProperty({
+                    type: String,
+                    description: 'The user ID'
+                })
+                userId: string
+            }
+
+            export class Associate implements I_IVC.IWallet.IRequest.IAssociate {
+                @ApiProperty({
+                    type: String,
+                    description: 'The wallet ID'
+                })
+                walletId: string
+
+                @ApiProperty({
+                    type: String,
+                    description: 'The token ID'
+                })
+                tokenId: string                
+            }
+
+            export class Delete implements I_IVC.IWallet.IRequest.IDelete {
+                @ApiProperty({
+                    type: String,
+                    description: 'The transfer account ID'
+                })
+                transferAccountId: string
+            }
+        }
+
+        export namespace Response {
+            export class Withdraw implements I_IVC.IWallet.IResponse.IWithdraw {
+                @ApiProperty({
+                    type: Number,
+                    description: 'The amount of the withdraw'
+                })
+                amount: number
+
+                @ApiProperty({
+                    type: Number,
+                    description: 'The date of the withdraw'
+                })
+                date: number
+
+                @ApiProperty({
+                    type: String,
+                    description: 'The transaction ID of the withdraw'
+                })
+                transactionId: string
+
+                @ApiProperty({
+                    type: String,
+                    enum: I_IVC.IWallet.IResponse.IWthdrawStatus,
+                    description: 'The status of the withdraw'
+                })
+                status: I_IVC.IWallet.IResponse.IWthdrawStatus
+            }
+        }
+    }
+}
+</file>
+
+<file path="wallets/wallets.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing'
+import { WalletsController } from './wallets.controller'
+import { WalletsService } from './wallets.service'
+
+describe('WalletsController', () => {
+  let controller: WalletsController;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      controllers: [WalletsController],
+      providers: [WalletsService],
+    }).compile();
+
+    controller = module.get<WalletsController>(WalletsController);
+  });
+
+  it('should be defined', () => {
+    expect(controller).toBeDefined();
+  });
+});
+</file>
+
+<file path="wallets/wallets.controller.ts">
+import { 
+  Controller, 
+  Req, 
+  Get, 
+  BadRequestException, 
+  Post, 
+  Body,
+  Param,
+  Delete,
+  Query
+} from '@nestjs/common'
+import { WalletsService } from './wallets.service'
+import { 
+  ApiBadRequestResponse, 
+  ApiBody, 
+  ApiNotFoundResponse, 
+  ApiOkResponse, 
+  ApiOperation, 
+  ApiParam, 
+  ApiQuery, 
+  ApiResponse, 
+  ApiTags 
+} from '@nestjs/swagger'
+import { IVC, I_IVC } from './interfaces/ivc.namespace'
+import { ISmartNode, SmartNode } from '@hsuite/types'
+import { AccountId } from '@hashgraph/sdk'
+import { Wallet } from './entities/wallet.entity'
+
+@Controller('wallets')
+@ApiTags('wallets')
+export class WalletsController {
+  constructor(
+    private readonly walletsService: WalletsService
+    ) {}
+
+  @ApiOperation({
+    summary: 'get the wallet of a specific user.',
+    description: 'this endpoint will get the wallet of a specific user.'
+  })
+  @ApiOkResponse({
+    type: IVC.Wallet.History,
+    isArray: false,
+    status: 200,
+    description: "Returns a HederaWalletHistory object."
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The user id of the wallet to get.'
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Get(':userId')
+  async getWallet(
+    @Req() request,
+    @Param('userId') userId: string
+  ): Promise<I_IVC.IWallet.IHistory> {
+    try {
+      return await this.walletsService.getWallet(userId);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+  @Get(':userId/tokens')
+  @ApiOperation({ summary: 'Get tokens for a user wallet' })
+  @ApiParam({
+      name: 'userId',
+      required: true,
+      description: 'The ID of the user whose wallet tokens to retrieve'
+  })
+ 
+  @ApiResponse({
+      status: 200,
+      description: 'Tokens retrieved successfully'
+  })
+  @ApiResponse({
+      status: 404,
+      description: 'Wallet not found for user'
+  })
+  getToken(
+      @Param('userId') userId: string,
+   
+  ): Promise<any> {
+      return new Promise((resolve, reject) => {
+          this.walletsService.getToken(userId)
+              .then(result => {
+                  resolve(result);
+              })
+              .catch(error => {
+                  reject(error);
+              });
+      });
+  }
+  @ApiOperation({
+    summary: 'create a wallet for a specific user.',
+    description: 'this endpoint will create a wallet for a specific user.'
+  })
+  @ApiOkResponse({
+    type: Wallet,
+    isArray: false,
+    status: 200,
+    description: "Returns a Wallet object."
+  })
+  @ApiBody({
+    type: IVC.Wallet.Request.Create,
+    required: true
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post()
+  async createWallet(
+    @Req() request,
+    @Body() createWalletRequest: IVC.Wallet.Request.Create
+  ): Promise<Wallet> {
+    try {
+      return await this.walletsService.createWallet(createWalletRequest)
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'delete a wallet for a specific user.',
+    description: 'this endpoint will delete a wallet for a specific user.'
+  })
+  @ApiOkResponse({
+    type: SmartNode.SmartTransaction.Details,
+    isArray: false,
+    status: 200,
+    description: "Returns a SmartNode.SmartTransaction.Details."
+  })
+  @ApiBody({
+    type: IVC.Wallet.Request.Delete,
+    required: true
+  })
+  @ApiParam({
+    name: 'userId',
+    required: true,
+    type: 'string',
+    description: 'The userId to delete.'
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Delete(':userId')
+  async deleteWallet(
+    @Req() request,
+    @Param('userId') userId: string,
+    @Body() deleteWalletRequest: IVC.Wallet.Request.Delete
+  ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+    try {
+      return await this.walletsService.deleteWallet(
+        userId,
+        AccountId.fromString(deleteWalletRequest.transferAccountId)
+      )
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'associate a wallet to a token, for a specific user.',
+    description: 'this endpoint will associate a token to a wallet, for a specific user.'
+  })
+  @ApiOkResponse({
+    type: SmartNode.SmartTransaction.Details,
+    isArray: false,
+    status: 200,
+    description: "Returns a SmartNode.SmartTransaction.Details object."
+  })
+  @ApiBody({
+    type: IVC.Wallet.Request.Associate,
+    required: true
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post('associate/token')
+  async associateToken(
+    @Req() request,
+    @Body() associateTokenRequest: IVC.Wallet.Request.Associate
+  ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+    try {
+      return await this.walletsService.associateToken(associateTokenRequest);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  @ApiOperation({
+    summary: 'dissociate a wallet to a token, for a specific user.',
+    description: 'this endpoint will dissociate a wallet to a token, for a specific user.'
+  })
+  @ApiOkResponse({
+    type: SmartNode.SmartTransaction.Details,
+    isArray: false,
+    status: 200,
+    description: "Returns a SmartNode.SmartTransaction.Details object."
+  })
+  @ApiBody({
+    type: IVC.Wallet.Request.Associate,
+    required: true
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post('dissociate/token')
+  async dissociateToken(
+    @Req() request,
+    @Body() associateTokenRequest: IVC.Wallet.Request.Associate
+  ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+    try {
+      return await this.walletsService.dissociateToken(associateTokenRequest);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  // @isTwoFactorAuth()
+  @ApiOperation({
+    summary: 'withdraw a specific token amount from the wallet , for a specific uer.',
+    description: 'this endpoint will allow the admin to withdraw a specific token amount from the wallet , for a specific uer.'
+  })
+  @ApiOkResponse({
+    type: IVC.Wallet.Response.Withdraw,
+    isArray: false,
+    status: 200,
+    description: "Returns a WithdrawResponse object."
+  })
+  @ApiBody({
+    type: IVC.Wallet.Request.Withdraw,
+    required: true
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Post('withdraw/token')
+  async withdrawToken(
+    @Body() withdraw: IVC.Wallet.Request.Withdraw,
+    @Req() request,
+  ): Promise<I_IVC.IWallet.IResponse.IWithdraw> {
+    try {
+      return await this.walletsService.withdrawToken(withdraw);
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+
+  
+
+
+}
+</file>
+
+<file path="wallets/wallets.module.ts">
+import { Module } from '@nestjs/common'
+import { WalletsService } from './wallets.service'
+import { WalletsController } from './wallets.controller'
+import { MongooseModule } from '@nestjs/mongoose'
+import { Wallet, WalletSchema } from './entities/wallet.entity'
+import { WalletTransaction, WalletTransactionSchema } from './entities/transaction.entity'
+import { SmartConfigModule } from '@hsuite/smart-config'
+import { IpfsResolverModule } from '@hsuite/ipfs-resolver'
+import { IDIssuer, IDIssuerSchema } from 'src/issuers/entities/issuer.entity'
+import { IDCredential, IDCredentialSchema } from 'src/identities/credentials/entities/credential.entity'
+import { CypherModule } from 'src/cypher/cypher.module'
+
+@Module({
+  imports: [
+    IpfsResolverModule,
+    SmartConfigModule,
+    CypherModule,
+    MongooseModule.forFeature([{ name: Wallet.name, schema: WalletSchema }]),
+    MongooseModule.forFeature([{ name: WalletTransaction.name, schema: WalletTransactionSchema }]),
+    MongooseModule.forFeature([{ name: IDIssuer.name, schema:IDIssuerSchema }]),
+    MongooseModule.forFeature([{ name: IDCredential.name, schema:IDCredentialSchema }])
+  ],
+  controllers: [
+    WalletsController
+  ],
+  providers: [
+    WalletsService
+  ],
+  exports: [
+    WalletsService
+  ]
+})
+export class WalletsModule {}
+</file>
+
+<file path="wallets/wallets.service.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing'
+import { WalletsService } from './wallets.service'
+
+describe('WalletsService', () => {
+  let service: WalletsService;
+
+  beforeEach(async () => {
+    const module: TestingModule = await Test.createTestingModule({
+      providers: [WalletsService],
+    }).compile();
+
+    service = module.get<WalletsService>(WalletsService);
+  });
+
+  it('should be defined', () => {
+    expect(service).toBeDefined();
+  });
+});
+</file>
+
+<file path="wallets/wallets.service.ts">
+import {
+    Injectable,
+    Logger,
+    OnModuleInit
+} from '@nestjs/common'
+import {
+    Wallet,
+    WalletDocument
+} from './entities/wallet.entity'
+import {IVC, I_IVC} from './interfaces/ivc.namespace'
+import {
+    AccountBalanceQuery,
+    AccountId,
+    LedgerId,
+    PrivateKey,
+    Status,
+    Transaction
+} from '@hashgraph/sdk'
+import * as moment from 'moment'
+import {Model} from 'mongoose'
+import {InjectModel} from '@nestjs/mongoose'
+
+import {
+    IHedera,
+    ISmartNode
+} from '@hsuite/types'
+import {
+    WalletTransaction,
+    WalletTransactionDocument
+} from './entities/transaction.entity'
+import {ClientService} from '@hsuite/client'
+import {HederaClientHelper} from '@hsuite/helpers'
+import {SmartConfigService} from '@hsuite/smart-config'
+import Decimal from 'decimal.js'
+import {IpfsResolverService} from '@hsuite/ipfs-resolver'
+import {IDIssuer, IDIssuerDocument} from 'src/issuers/entities/issuer.entity'
+import {IDCredential, IDCredentialDocument} from 'src/identities/credentials/entities/credential.entity'
+import {CypherService} from 'src/cypher/cypher.service'
+import {ConfigService} from '@nestjs/config'
+import * as lodash from 'lodash'
+import {DiscordLogger} from 'src/common/logger/discord-logger.service'
+
+@Injectable()
+export class WalletsService implements OnModuleInit {
+    protected logger: Logger = new Logger(WalletsService.name);
+    private hederaClient: HederaClientHelper;
+    private maxAutomaticTokenAssociations: number;
+
+    constructor(
+        private readonly smartConfigService: SmartConfigService,
+        private readonly nodeClientService: ClientService,
+        private readonly ipfsResolver: IpfsResolverService,
+        private readonly cypherService: CypherService,
+        private configService: ConfigService,
+        private readonly discordLogger: DiscordLogger,
+        @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
+        @InjectModel(WalletTransaction.name) private walletTransactiontModel: Model<WalletTransactionDocument>,
+        @InjectModel(IDIssuer.name) private issuerModel: Model<IDIssuerDocument>,
+        @InjectModel(IDCredential.name) private credentialModel: Model<IDCredentialDocument>
+    ) {
+        this.maxAutomaticTokenAssociations = Number(this.configService.get<string>('maxAutomaticTokenAssociations'));
+        this.hederaClient = new HederaClientHelper(
+            LedgerId.fromString(this.smartConfigService.getEnvironment()),
+            this.smartConfigService.getOperator(),
+            this.smartConfigService.getMirrorNode()
+        );
+    }
+
+    async onModuleInit() {}
+
+    async getWallet(
+        userId: string
+    ): Promise<IVC.Wallet.History> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let wallet: WalletDocument = await this.walletModel.findOne({
+                    owner: userId
+                });
+
+                // if the wallet does not exist, then throw an error...
+                if (!wallet) {
+                    //await this.discordLogger.warn(`wallet not found for user ${userId}`, 'WalletsService.getWallet');
+                    throw (new Error(`wallet not found for user ${userId}`));
+                }
+
+                // populating the transactions for the wallet...
+                await wallet.populate({path: 'transactions'});
+
+                // SMART-NODE CALL: fetching the onchain balance for the wallet...
+                wallet.account.balance = (await this.nodeClientService.axios.get(
+                    `/accounts/restful/${wallet.account.id}/tokens`)).data;
+
+                const nfts = (await this.nodeClientService.axios.get(
+                    `/accounts/restful/${wallet.account.id}/nfts`)).data.nfts;
+
+                let issuers = await this.issuerModel.find({
+                    nftID: {$in: wallet.account.balance.tokens.map((token: any) => token.token_id)}
+                });
+
+                let credentials: Array<IDCredentialDocument> = await this.credentialModel.find({
+                    owner: userId,
+                    issuer: {$in: issuers.map(issuer => issuer.issuer)}
+                });
+
+                let metadataPromises = nfts.map(nft => this.ipfsResolver.getMetadata(nft.metadata));
+                let metadataResponses = await Promise.all(metadataPromises);
+
+                for (let index = 0; index < metadataResponses.length; index++) {
+                    const metadata = metadataResponses[index];
+                    let credential = credentials.find(credential => credential.serial_number == nfts[index].serial_number);
+                    nfts[index].metadata = metadata;
+
+                    if (!lodash.isUndefined(credential?.iv)) {
+                        nfts[index].metadata.properties = JSON.parse(await this.cypherService.decrypt(
+                            nfts[index].metadata.properties.encryptedText,
+                            credential.iv
+                        ))
+                    }
+                }
+
+                wallet.account.balance.tokens.forEach((token: any) => {
+                    let nftsForToken = nfts.filter((nft: any) => nft.token_id == token.token_id);
+                    let issuer = issuers.find(issuer => issuer.nftID == token.token_id).issuer;
+
+                    nftsForToken = nftsForToken.map(nft => {
+                        nft.credential = credentials.find(credential =>
+                            credential.issuer == issuer && credential.serial_number == nft.serial_number)
+
+                        return nft;
+                    });
+
+                    token['nfts'] = nftsForToken;
+                });
+                this.logger.log({
+                    msg: 'Wallet details fetched successfully',
+                    userId: userId,
+                    accountId: wallet.account.id,
+                    tokenCount: wallet.account.balance?.tokens?.length || 0,
+                    nftCount: nfts?.length || 0,
+                    transactionCount: wallet.transactions.length
+                });
+                resolve({
+                    ...wallet.account,
+                    transactions: wallet.transactions.filter(transaction =>
+                        transaction.from == wallet.account.id ||
+                        transaction.to == wallet.account.id
+                    )
+                });
+            } catch (error) {
+
+                if (error.message.includes('wallet not found')) {
+                    this.logger.log({
+                        msg: 'Wallet not found',
+                        userId: userId
+                    });
+                } else {
+                    this.logger.error({
+                        msg: 'Error fetching wallet details',
+                        userId: userId,
+                        error: error.message,
+                        method: 'WalletsService.getWallet()',
+                        stack: error.stack
+                    });
+                    await this.discordLogger.error(`getWallet error: ${error} for user ${userId}`, error.stack, 'WalletsService.getWallet()');
+                }
+
+                reject(error);
+            }
+        });
+    }
+
+    async createWallet(createWalletRequest: IVC.Wallet.Request.Create): Promise<Wallet> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let walletDocument: WalletDocument = await this.walletModel.findOne({
+                    owner: createWalletRequest.userId
+                });
+
+                // if the wallet already exists, then throw an error...
+                if (walletDocument) {
+                    throw (new Error(`wallet already exists for user ${createWalletRequest.userId}`));
+                }
+
+                // SMART-NODE CALL: creating the wallet...
+                let payload: IHedera.ILedger.IAccounts.ICreateRequest = {
+                    balance: 0,
+                    maxAutomaticTokenAssociations: <number>this.maxAutomaticTokenAssociations,
+                    isReceiverSignatureRequired: true
+                };
+
+                let response = await this.nodeClientService.axios.post(`/accounts`, payload);
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    // saving the wallet to the database...
+                    walletDocument = new this.walletModel({
+                        owner: createWalletRequest.userId,
+                        account: {
+                            id: receipt.accountId.toString(),
+                            balance: null
+                        },
+                        transactions: []
+                    });
+
+                    await walletDocument.save();
+
+                    this.logger.log({
+                        msg: 'Wallet created successfully',
+                        userId: createWalletRequest.userId,
+                        accountId: receipt.accountId.toString()
+                    });
+
+                    resolve(<Wallet>walletDocument.toJSON());
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error creating wallet',
+                    error: error.message,
+                    method: 'WalletsService.createWallet()',
+                    userId: createWalletRequest.userId,
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`createWallet error: ${error}`, 'WalletsService.createWallet()');
+                reject(error);
+            }
+        });
+    }
+
+    async associateToken(
+        associateWalletRequest: IVC.Wallet.Request.Associate
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+
+                // SMART-NODE CALL: associating a token to the wallet...
+                let response = await this.nodeClientService.axios.post(
+                    `/hts/associate/${associateWalletRequest.tokenId}/${associateWalletRequest.walletId}`
+                );
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'Token association successful',
+                        tokenId: associateWalletRequest.tokenId,
+                        walletId: associateWalletRequest.walletId,
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                    this.logger.log({
+                        msg: 'Token associated successfully',
+                        tokenId: associateWalletRequest.tokenId,
+                        walletId: associateWalletRequest.walletId
+                    });
+                    resolve({
+                        status: receipt.status.toString(),
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error associating token',
+                    tokenId: associateWalletRequest.tokenId,
+                    walletId: associateWalletRequest.walletId,
+                    error: error.message,
+                    method: 'WalletsService.associateToken()'
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async dissociateToken(
+        associateWalletRequest: IVC.Wallet.Request.Associate
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+
+                // SMART-NODE CALL: dissociating a token to the wallet...
+                let response = await this.nodeClientService.axios.post(
+                    `/hts/dissociate/${associateWalletRequest.tokenId}/${associateWalletRequest.walletId}`
+                );
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'Token dissociation successful',
+                        tokenId: associateWalletRequest.tokenId,
+                        walletId: associateWalletRequest.walletId,
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                    this.logger.log({
+                        msg: 'Token dissociated successfully',
+                        tokenId: associateWalletRequest.tokenId,
+                        walletId: associateWalletRequest.walletId
+                    });
+                    resolve({
+                        status: receipt.status.toString(),
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                } else {
+
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error dissociating token',
+                    tokenId: associateWalletRequest.tokenId,
+                    walletId: associateWalletRequest.walletId,
+                    error: error.message,
+                    method: 'WalletsService.dissociateToken()'
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async withdrawToken(
+        withdraw: I_IVC.IWallet.IRequest.IWithdraw
+    ): Promise<I_IVC.IWallet.IResponse.IWithdraw> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let wallet: IVC.Wallet.History = await this.getWallet(withdraw.userId);
+
+                // if the wallet does not exist, then throw an error...
+                if (!wallet) {
+                    throw (new Error(`wallet not found for user ${withdraw.userId}`));
+                }
+
+                // checking if the wallet has sufficient funds...
+                let tokenBalance = wallet.balance.tokens.find((token: any) => token.token_id == withdraw.token.id);
+                if (new Decimal(tokenBalance.balance).lessThan(withdraw.amount)) {
+                    throw (new Error(`insufficient funds on your wallet.`));
+                }
+
+                // SMART-NODE CALL: moving funds from user's wallet into a destination wallet...
+                let payload: IHedera.ILedger.IHTS.ITransferFungibleToken = {
+                    token_id: withdraw.token.id,
+                    sender: wallet.id,
+                    receiver: withdraw.wallet,
+                    amount: withdraw.amount,
+                    decimals: withdraw.token.decimals,
+                    memo: 'withdraw funds from wallet'
+                }
+
+                let response = await this.nodeClientService.axios.post(
+                    `/hts/transfer/token`,
+                    payload
+                );
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'Token withdrawal successful',
+                        userId: withdraw.userId,
+                        tokenId: withdraw.token.id,
+                        amount: withdraw.amount,
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                    let withdrawResponse: I_IVC.IWallet.IResponse.IWithdraw = {
+                        amount: withdraw.amount,
+                        date: moment().unix(),
+                        transactionId: submitTx.transactionId.toString().toString(),
+                        status: I_IVC.IWallet.IResponse.IWthdrawStatus.COMPLETED
+                    };
+                    this.logger.log({
+                        msg: 'Token withdrawal completed',
+                        userId: withdraw.userId,
+                        tokenId: withdraw.token.id,
+                        amount: withdraw.amount
+                    });
+                    resolve(withdrawResponse);
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error withdrawing token',
+                    userId: withdraw.userId,
+                    tokenId: withdraw.token?.id,
+                    amount: withdraw.amount,
+                    error: error.message,
+                    method: 'WalletsService.withdrawToken()'
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async deleteWallet(
+        userId: string,
+        transferAccountId: AccountId
+    ): Promise<ISmartNode.ISmartTransaction.IDetails> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let walletDocument: WalletDocument = await this.walletModel.findOne({
+                    owner: userId
+                });
+
+                // if the wallet does not exist, then throw an error...
+                if (!walletDocument) {
+                    throw (new Error(`owner ${userId} not found`));
+                }
+
+                // SMART-NODE CALL: creating the wallet...
+                let response = await this.nodeClientService.axios.delete(`/accounts/${walletDocument.account.id}`, {
+                    data: {
+                        transferAccountId: transferAccountId.toString()
+                    }
+                });
+                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+
+                // signing the transaction and submitting it to the network...
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(
+                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
+                );
+
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+
+                if (receipt.status == Status.Success) {
+                    this.logger.log({
+                        msg: 'Wallet deletion successful',
+                        userId: userId,
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                    await walletDocument.deleteOne();
+                    this.logger.log({
+                        msg: 'Wallet deleted successfully',
+                        userId: userId,
+                        transferAccountId: transferAccountId.toString()
+                    });
+                    resolve({
+                        status: receipt.status.toString(),
+                        transactionId: submitTx.transactionId.toString()
+                    });
+                } else {
+                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                }
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error deleting wallet',
+                    userId: userId,
+                    transferAccountId: transferAccountId.toString(),
+                    error: error.message,
+                    method: 'WalletsService.deleteWallet()'
+                });
+                reject(error);
+            }
+        });
+    }
+
+    async getToken(
+        userId: string
+
+    ): Promise<any> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // checking if the wallet exists for the given userId...
+                let wallet: WalletDocument = await this.walletModel.findOne({
+                    owner: userId
+                });
+
+                // if the wallet does not exist, then throw an error...
+                if (!wallet) {
+                    throw (new Error(`wallet not found for user ${userId}`));
+                }
+
+                // Use wallet.id for the API call
+                const walletId = wallet.account.id; // Get wallet ID from the wallet document
+
+                // SMART-NODE CALL: fetching token relationships for the specified wallet...
+                const response = await this.nodeClientService.axios.get(`/accounts/restful/${walletId}/tokens`, {
+                });
+                this.logger.log({
+                    msg: 'Successfully retrieved wallet tokens',
+                    userId: userId,
+                    walletId: walletId,
+                    tokenCount: response.data?.tokens?.length || 0
+                });
+                // resolving the response data...
+                resolve(response.data);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error fetching wallet tokens',
+                    userId: userId,
+                    error: error.message,
+                    method: 'WalletsService.getToken()',
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`getToken error: ${error}`, 'WalletsService.getToken()');
+                reject(error);
+            }
+        });
+    }
+
+    async getNftInfo(
+        tokenId: string,
+        serialNumber: string
+    ): Promise<any> {
+        return new Promise(async (resolve, reject) => {
+            try {
+                // SMART-NODE CALL: fetching NFT information...
+                const response = await this.nodeClientService.axios.get(
+                    `/hts/restful/tokens/${tokenId}/nfts/${serialNumber}`
+                );
+
+                this.logger.log({
+                    msg: 'Successfully retrieved NFT information',
+                    tokenId: tokenId,
+                    serialNumber: serialNumber
+                });
+
+
+                resolve(response.data);
+            } catch (error) {
+                this.logger.error({
+                    msg: 'Error fetching NFT information',
+                    tokenId: tokenId,
+                    serialNumber: serialNumber,
+                    error: error.message,
+                    method: 'WalletsService.getNftInfo()',
+                    stack: error.stack
+                });
+                await this.discordLogger.error(`getNftInfo error: ${error} for serialNumber ${serialNumber}`, 'WalletsService.getNftInfo()');
+                reject(error);
+            }
+        });
+    }
+}
+</file>
+
+<file path="app.controller.spec.ts">
+import { Test, TestingModule } from '@nestjs/testing';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+
+describe('AppController', () => {
+  let appController: AppController;
+
+  beforeEach(async () => {
+    const app: TestingModule = await Test.createTestingModule({
+      controllers: [AppController],
+      providers: [AppService],
+    }).compile();
+
+    appController = app.get<AppController>(AppController);
+  });
+
+  describe('root', () => {
+    it('should return "Hello World!"', () => {
+      expect(appController.getHello()).toBe('Hello World!');
+    });
+  });
+});
+</file>
+
+<file path="app.controller.ts">
+import { 
+  ApiNotFoundResponse, 
+  ApiBadRequestResponse, 
+  ApiOkResponse, 
+  ApiOperation, 
+  ApiTags 
+} from '@nestjs/swagger'
+import { BadRequestException, Controller, Get } from '@nestjs/common'
+import { AppService } from './app.service'
+import { Public } from '@hsuite/decorators'
+import { ISmartNode, SmartNode } from '@hsuite/types'
+
+@Controller('node')
+@ApiTags('node')
+export class AppController {
+  smartClientService: any;
+  constructor(
+    private readonly appService: AppService
+  ) {}
+
+  @Public()
+  @ApiOperation({
+    summary: 'get the identifier of the SmartNodeOperator this SmartApp is connected to',
+    description: 'This endpoint is only available if the user is authenticated. \
+    It will return the details about the SmartNodeOperator.'
+  })
+  @ApiOkResponse({
+    type: SmartNode.Operator,
+    status: 200,
+    description: "Returns a SmartNodeOperator."
+  })
+  @ApiNotFoundResponse()
+  @ApiBadRequestResponse()
+  @Get('smart-node-identifier')
+  async smartNodeIdentifier(): Promise<ISmartNode.IOperator> {
+    try {
+      return await this.appService.smartNodeIdentifier();
+    } catch(error) {
+      throw new BadRequestException(error.message);
+    }
+  }
+}
+</file>
+
+<file path="app.module.ts">
+import { DynamicModule, Module } from '@nestjs/common';
+import { AppController } from './app.controller';
+import { AppService } from './app.service';
+import { APP_INTERCEPTOR } from '@nestjs/core';
+import { CacheInterceptor, CacheModule } from '@nestjs/cache-manager';
+import { ConsoleModule } from 'nestjs-console';
+import { join } from 'path';
+import { ServeStaticModule } from '@nestjs/serve-static';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { MongooseModule } from '@nestjs/mongoose';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
+import { redisStore } from 'cache-manager-redis-yet';
+import { RedisClientOptions } from 'redis';
+import { Config } from 'cache-manager';
+import { WalletsModule } from './wallets/wallets.module';
+import { ApiKeyModule } from '@hsuite/api-key';
+import { AuthModule } from '@hsuite/auth';
+import { SecurityThrottlerModule } from '@hsuite/throttler';
+import { IHedera } from '@hsuite/types';
+import { LedgerId } from '@hashgraph/sdk';
+import { ClientModule } from '@hsuite/client';
+import { IpfsResolverModule, IpfsResolverService } from '@hsuite/ipfs-resolver';
+import { IdentitiesModule } from './identities/identities.module';
+import { IssuersModule } from './issuers/issuers.module';
+import { BalanceModule } from './balance/balance.module';
+import { HtsModule } from './hts/hts.module';
+
+import testnet from '../config/settings/testnet';
+import mainnet from '../config/settings/mainnet';
+import modules from '../config/settings/modules';
+import authentication from '../config/settings/authentication';
+import configuration from '../config/configuration';
+import { LoggerModule } from './common/logger/logger.module';
+
+@Module({
+  imports: [
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      envFilePath: '.smart_app.env',
+      load: [configuration, authentication, testnet, mainnet, modules]
+    }),
+    ScheduleModule.forRoot(),
+    CacheModule.registerAsync<RedisClientOptions>({
+      isGlobal: true,
+      imports: [ConfigModule],
+      inject: [ConfigService],
+      useFactory: async (configService: ConfigService) => ({
+        store: await redisStore(configService.get<RedisClientOptions & Config>('redis'))
+      })
+    }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: async (configService: ConfigService) => ({
+        uri: configService.get<string>(
+          `${configService.get<string>('environment')}.mongodbUrl`
+        )
+      }),
+      inject: [ConfigService],
+    }),
+    EventEmitterModule.forRoot({
+      wildcard: false,
+      delimiter: '.',
+      newListener: true,
+      removeListener: true,
+      maxListeners: 10,
+      verboseMemoryLeak: true,
+      ignoreErrors: false
+    }),
+    ServeStaticModule.forRoot({
+      rootPath: join(__dirname, '..', '../public'),
+      serveRoot: '/public/',
+      exclude: ["/api*"],
+    }),
+    ConsoleModule,
+    HtsModule,
+    LoggerModule
+  ],
+  controllers: [
+    AppController
+  ],
+  providers: [
+    AppService,
+    {
+      provide: APP_INTERCEPTOR,
+      useClass: CacheInterceptor,
+    },
+  ]
+})
+export class AppModule {
+
+  static register(): DynamicModule {
+    return {
+      module: AppModule,
+      imports: [
+        // Smart Node - Core Modules
+        IpfsResolverModule,
+        WalletsModule,
+        IssuersModule,
+        IdentitiesModule,
+        BalanceModule,
+        HtsModule,
+        LoggerModule,
+        SecurityThrottlerModule.forRoot(),  
+        ClientModule.forRootAsync({
+          imports: [ConfigModule],
+          useExisting: ConfigService,
+          useFactory: async (configService: ConfigService) => ({
+            environment: LedgerId.fromString(configService.get<string>(
+              'client_environment'
+            )),
+            operator: configService.get<IHedera.IOperator>(
+              `${configService.get<string>('environment')}.node`
+            ),
+            nodes: configService.get<IHedera.IOperator>(
+              `${configService.get<string>('environment')}.nodes`
+            )
+          })
+        }),         
+        AuthModule.forRootAsync({
+          imports: [ConfigModule, IpfsResolverModule],
+          useExisting: ConfigService,
+          inject: [ConfigService, IpfsResolverService],
+          useFactory: () => (authentication().auth)
+        }),
+        ...(
+          modules().modules.ApiKeyModule.enabled ?
+            [
+              ApiKeyModule
+            ] : []
+        )
+      ],
+      providers: []
+    };
+  }
+}
+</file>
+
+<file path="app.service.ts">
+import { Injectable } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { IHedera, ISmartNode } from '@hsuite/types';
+
+@Injectable()
+export class AppService {
+  private environment: string;
+  private node: IHedera.IOperator;
+  
+  constructor(
+    private configService: ConfigService
+  ) {
+    this.environment = this.configService.get<string>('environment');
+    this.node = this.configService.get<IHedera.IOperator>(`${this.environment}.node`);
+  }
+ 
+  async smartNodeIdentifier(): Promise<ISmartNode.IOperator> {
+    return new Promise(async(resolve, reject) => {
+      try {
+        resolve({
+          accountId: this.node.accountId,
+          publicKey: this.node.publicKey
+        });        
+      } catch(error) {
+        reject(error);
+      }
+    });
+  }
+}
+</file>
+
+<file path="main.ts">
+import { NestFactory } from '@nestjs/core';
+import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
+import * as csurf from 'csurf';
+import helmet from 'helmet';
+import * as bodyParser from 'body-parser';
+import * as cookieParser from 'cookie-parser';
+import * as compression from 'compression';
+import { CustomThrottlerGuard } from '@hsuite/throttler';
+import { ExecutionContextHost } from '@nestjs/core/helpers/execution-context-host';
+import { AppService } from './app.service';
+import { AppModule } from './app.module';
+import { ClusterService } from '@hsuite/cluster';
+import modules from '../config/settings/modules';
+import * as express from 'express';
+import { Logger } from 'nestjs-pino';
+async function bootstrap() {
+  // creating app instance...
+  const app = await NestFactory.create(AppModule.register(), { 
+    bufferLogs: true
+  });
+   app.useLogger(app.get(Logger));
+
+  // using custom throttler guard, to avoid DDOS attacks on /api and /public routes...
+  const throttlerGuard = app.get(CustomThrottlerGuard);
+  app.use(async function (req, res, next) {
+   // console.log("Req",req)
+    //console.log("res",res)
+    let executionContext = new ExecutionContextHost(
+      [req, res], app.get(AppService), app.get(AppService)
+    );
+
+    if(req.originalUrl.includes('/api') || req.originalUrl.includes('/public')) {
+      try {
+        await throttlerGuard.handleRequest(
+          executionContext, 
+          modules().modules.ThrottlerModule.config.limit,
+          modules().modules.ThrottlerModule.config.ttl
+        );
+        next();
+      } catch(error) {
+        res.status(429).json({
+          statusCode: 429,
+          message: 'Too Many Requests',
+        });
+      }
+    } else {
+      next();
+    }
+ });
+
+  // enabling body parser...
+  app.use(express.json());
+  app.use(bodyParser.urlencoded({ extended: true }));
+
+  // enabling cors...
+  app.enableCors({credentials: true, origin: true, methods: 'GET,HEAD,PUT,PATCH,POST,DELETE'});
+  // making use of CSRF Protection...
+  app.use(cookieParser());
+
+  // csurf seems not to be working when using passport/redis/jwt...
+  // app.use(csurf({ cookie: true }));
+
+  // making use of Helmet...
+  app.use(helmet({
+    crossOriginResourcePolicy: false
+  }));
+
+  // Starts listening for shutdown hooks
+  app.enableShutdownHooks();
+
+  // enabling compression server side...
+  app.use(compression());
+
+  const config = new DocumentBuilder()
+  .setTitle('Ikad - Restful API')
+  .setDescription(`A comprehensive set of tools to communicate with the Ikad Smart Node.`)
+  .setVersion('1.0')
+  .addBearerAuth({
+    type: 'http',
+    name: 'Authorization',
+    scheme: 'Bearer',
+    bearerFormat: 'Api Key',
+    in: 'Header',
+    description: `The API Key is used to authenticate requests to the Ikad Smart Node.`,
+  }, 'Bearer')
+  .addSecurityRequirements('Bearer')
+  .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api', app, document);
+ 
+  // start listening on the port...
+  await app.listen(process.env.PORT || 3000);
+
+  // returning app instance...
+  return app;
+}
+
+// clusterizing the app...
+if(modules().modules.ClusterModule.enabled) {
+  ClusterService.clusterize(
+    modules().modules.ClusterModule.workers, 
+    bootstrap
+  );
+} 
+// or simply bootstrapping the app...
+else {
+  bootstrap();
+}
+</file>
+
+</files>
