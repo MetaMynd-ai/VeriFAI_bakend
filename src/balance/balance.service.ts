@@ -1,19 +1,13 @@
-import {Injectable, NotFoundException, OnModuleInit, Logger  } from '@nestjs/common';
-
+import {Injectable, NotFoundException, OnModuleInit, Logger} from '@nestjs/common';
 import { AxiosResponse } from 'axios';
 import { HttpService } from '@nestjs/axios';
 import { SmartConfigService } from '@hsuite/smart-config'
 import { BalanceResponse } from './interfaces/balance-response.interface';
 import {clearScreenDown} from 'readline';
-import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
 
 @Injectable()
-export class BalanceService  {
- 
-
-
-  @InjectPinoLogger(BalanceService.name)
-  private readonly logger: PinoLogger
+export class BalanceService {
+  private readonly logger = new Logger(BalanceService.name);
 
   constructor(
     private readonly httpService: HttpService,
@@ -45,19 +39,15 @@ export class BalanceService  {
         });
 
         const result: BalanceResponse = { timestamp, balances: convertedBalances };
-        this.logger.info({
-          msg: 'Balance fetched successfully',
-          accountId: accountId,
-          balanceCount: result.balances.length
-        });
+        this.logger.log(
+          `Balance fetched successfully - Account: ${accountId}, Balance Count: ${result.balances.length}`
+        );
         resolve(result);
       } catch (error) {
-        this.logger.error({
-          msg: 'Error fetching balance',
-          accountId: accountId,
-          error: error?.message,
-          method: 'BalanceService.getBalance()'
-        });
+        this.logger.error(
+          `Error fetching balance - Account: ${accountId}, Error: ${error?.message}`,
+          'BalanceService.getBalance()'
+        );
         reject(error);
       }
     });

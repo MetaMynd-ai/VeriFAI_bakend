@@ -12,13 +12,13 @@ import { AppModule } from './app.module';
 import { ClusterService } from '@hsuite/cluster';
 import modules from '../config/settings/modules';
 import * as express from 'express';
-import { Logger } from 'nestjs-pino';
+import { Logger } from '@nestjs/common';
 async function bootstrap() {
   // creating app instance...
   const app = await NestFactory.create(AppModule.register(), { 
     bufferLogs: true
   });
-   app.useLogger(app.get(Logger));
+  app.useLogger(new Logger());
 
   // using custom throttler guard, to avoid DDOS attacks on /api and /public routes...
   const throttlerGuard = app.get(CustomThrottlerGuard);

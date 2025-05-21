@@ -20,7 +20,7 @@ import {Hashing} from '@hsuite/did-sdk-js';
 import {VCStatusChange} from './credentials.controller';
 import {CypherService} from 'src/cypher/cypher.service';
 import {DiscordLogger} from 'src/common/logger/discord-logger.service';
-import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
+
 import { localeData } from 'moment';
 
 export const VcSlStatus = {
@@ -33,8 +33,7 @@ export const VcSlStatus = {
 @Injectable()
 export class CredentialsService {
 
-    @InjectPinoLogger(CredentialsService.name)
-    private readonly logger: PinoLogger
+    private readonly logger = new Logger(CredentialsService.name)
 
     private environment: string;
     private node: IHedera.IOperator;
@@ -45,8 +44,8 @@ export class CredentialsService {
         unpinEndPoint: 'pinning/unpin',
     };
 
-    private pinataAuth = {
-        jwt: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIxNDZlZDNkZi04MWIyLTQwZTAtYThiYS1iOWMwZmM4N2YwZWUiLCJlbWFpbCI6ImRldmVsb3BlcnNAc2NpY29tLmNvbS5teSIsImVtYWlsX3ZlcmlmaWVkIjp0cnVlLCJwaW5fcG9saWN5Ijp7InJlZ2lvbnMiOlt7ImlkIjoiRlJBMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfSx7ImlkIjoiTllDMSIsImRlc2lyZWRSZXBsaWNhdGlvbkNvdW50IjoxfV0sInZlcnNpb24iOjF9LCJtZmFfZW5hYmxlZCI6ZmFsc2UsInN0YXR1cyI6IkFDVElWRSJ9LCJhdXRoZW50aWNhdGlvblR5cGUiOiJzY29wZWRLZXkiLCJzY29wZWRLZXlLZXkiOiI4MDFhNWM5MGU2MjYwYTIwYmY5NCIsInNjb3BlZEtleVNlY3JldCI6IjExYzVkODM5ZDM5ZWY0OTBhYzcxYTlkNTIzNmZmNWQ0NDgzODlkY2RiMWY0ZDc1YWQyM2RiMTc4MmMwMDE0ZWYiLCJpYXQiOjE3MTU3Njg3MTJ9.bckOLAGNj9n_qIyIJNbl_mN3uMcJ31u7HPgkp4cQAQQ'
+     private pinataAuth = {
+        jwt: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJ1c2VySW5mb3JtYXRpb24iOnsiaWQiOiIyMjRmZTA3My1hZWVhLTQzODItODU3Ny04Njg1NjdhN2VkOGUiLCJlbWFpbCI6ImVjb3NwaGVyZTVAc2NpY29tLm15IiwiZW1haWxfdmVyaWZpZWQiOnRydWUsInBpbl9wb2xpY3kiOnsicmVnaW9ucyI6W3siZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiRlJBMSJ9LHsiZGVzaXJlZFJlcGxpY2F0aW9uQ291bnQiOjEsImlkIjoiTllDMSJ9XSwidmVyc2lvbiI6MX0sIm1mYV9lbmFibGVkIjpmYWxzZSwic3RhdHVzIjoiQUNUSVZFIn0sImF1dGhlbnRpY2F0aW9uVHlwZSI6InNjb3BlZEtleSIsInNjb3BlZEtleUtleSI6ImEwYjFhMGU1NTI1MDU5NTc1MzdlIiwic2NvcGVkS2V5U2VjcmV0IjoiZTVmNzI5OGJmYjc4NTkzM2JiMjI2NTQzNzk3MGUwMTk2N2M4ODFlNzcwNGY5NDhmNzcxY2QzOTYwYWQ3Mjg3YyIsImV4cCI6MTc3NzAxOTk5Nn0.DL8kAvohvHCgwV93EZIFngHdsjr58K2JUwf9vbMwQ8w'
     };
 
     constructor(
@@ -80,10 +79,7 @@ export class CredentialsService {
                     owner: userId
                 });
                 if (!identity) {
-                    this.logger.info({
-                        userId: userId,
-                        method: 'CredentialsService.getIdentityForUser()'
-                    }, 'No existing identity found, creating new DID');
+                    this.logger.log(`No existing identity found, creating new DID - userId: ${userId}, method: CredentialsService.getIdentityForUser()`);
 
                     const publicKeyMultibase = Hashing.multibase.encode(
                         PublicKey.fromString(this.node.publicKey).toBytes()
@@ -100,28 +96,15 @@ export class CredentialsService {
                     });
 
 
-                            this.logger.info({
-                    userId: userId,
-                    didId: did.id,
-                    method: 'CredentialsService.getIdentityForUser()'
-                }, 'New identity created successfully');
+                            this.logger.log(`New identity created successfully - userId: ${userId}, didId: ${did.id}, method: CredentialsService.getIdentityForUser()`);
                 } else {
-                    this.logger.info({
-                        userId: userId,
-                        didId: identity.did_id,
-                        method: 'CredentialsService.getIdentityForUser()'
-                    }, 'Existing identity found');
+                    this.logger.log(`Existing identity found - userId: ${userId}, didId: ${identity.did_id}, method: CredentialsService.getIdentityForUser()`);
                 }
 
 
                 resolve(identity);
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    error: error.message,
-                    method: 'CredentialsService.getIdentityForUser()',
-                    stack: error.stack
-                }, 'Error fetching user identity');
+                this.logger.error(`Error fetching user identity - userId: ${userId}, error: ${error.message}, method: CredentialsService.getIdentityForUser()`, error.stack);
                 reject(error);
             }
         });
@@ -144,29 +127,14 @@ export class CredentialsService {
                 let issuer: IDIssuer = await this.issuerModel.findOne(filters);
 
                 if (!issuer) {
-                    this.logger.info({
-                        ownerId: ownerId,
-                        issuerId: issuerId,
-                        method: 'CredentialsService.getIssuerForOwner()'
-                    }, 'No issuer found');
+                    this.logger.log(`No issuer found - ownerId: ${ownerId}, issuerId: ${issuerId}, method: CredentialsService.getIssuerForOwner()`);
                     throw new Error('IDIssuer not found.');
                 }
 
-                this.logger.info({
-                    ownerId: ownerId,
-                    issuerId: issuer.issuer,
-                    method: 'CredentialsService.getIssuerForOwner()'
-                }, 'Issuer retrieved successfully');
+                this.logger.log(`Issuer retrieved successfully - ownerId: ${ownerId}, issuerId: ${issuer.issuer}, method: CredentialsService.getIssuerForOwner()`);
                 resolve(issuer);
             } catch (error) {
-                this.logger.error({
-                    msg: 'Error fetching issuer',
-                    ownerId: ownerId,
-                    issuerId: issuerId,
-                    error: error.message,
-                    method: 'CredentialsService.getIssuerForOwner()',
-                    stack: error.stack
-                });
+                this.logger.error(`Error fetching issuer - ownerId: ${ownerId}, issuerId: ${issuerId}, error: ${error.message}, method: CredentialsService.getIssuerForOwner()`, error.stack);
                 reject(error);
             }
         });
@@ -182,7 +150,7 @@ export class CredentialsService {
     ): Promise<{_id: string, internal_status: string, chain_status: string;}> {
         return new Promise(async (resolve, reject) => {
             try {
-                this.logger.info(`Attempting to change VC status for credential ${credetialId}`);
+                this.logger.log(`Attempting to change VC status for credential ${credetialId}`);
 
                 let issuer: IDIssuer = await this.getIssuerForOwner(sessionId, issuerId);
 
@@ -225,10 +193,7 @@ export class CredentialsService {
 
                 await credential.save();
 
-                this.logger.info({
-                    userId: credetialId,
-                    method: 'CredentialsService.changeVCStatus()'
-                }, 'Credential status updated successfully');
+                this.logger.log(`Credential status updated successfully - userId: ${credetialId}, method: CredentialsService.changeVCStatus()`);
 
                 const status_return = {
                     _id: credetialId,
@@ -239,11 +204,7 @@ export class CredentialsService {
 
                 resolve(status_return);
             } catch (error) {
-                this.logger.error({
-                    sessionId: credetialId,
-                    error: error?.message,
-                    method: 'CredentialsService.changeVCStatus()'
-                }, 'Error in changeVCStatus');
+                this.logger.error(`Error in changeVCStatus - sessionId: ${credetialId}, error: ${error?.message}, method: CredentialsService.changeVCStatus()`);
 
                 await this.discordLogger.error(`changeVCStatus error: ${error.message}`, error.stack, 'CredentialsService.changeVCStatus');
 
@@ -269,18 +230,10 @@ export class CredentialsService {
 
                 const statusIndex = parseInt(`${firstBit}${secondBit}`, 2);
                 const status = Object.keys(VcSlStatus).find((key) => VcSlStatus[key] === statusIndex);
-                this.logger.info({
-                    status: status
-                }, 'VC status decoded');
+                this.logger.log(`VC status decoded - status: ${status}`);
                 resolve(status);
             } catch (error) {
-                this.logger.error({
-                    encodedListLength: encodedList.length,
-                    vcStatusListIndex: vcStatusListIndex,
-                    error: error.message,
-                    method: 'CredentialsService.decodeVCStatus()',
-                    stack: error.stack
-                }, 'Error decoding VC status',);
+                this.logger.error(`Error decoding VC status - encodedListLength: ${encodedList.length}, vcStatusListIndex: ${vcStatusListIndex}, error: ${error.message}, method: CredentialsService.decodeVCStatus()`, error.stack);
                 reject(error);
             }
         });
@@ -296,11 +249,7 @@ export class CredentialsService {
     }>> {
         return new Promise(async (resolve, reject) => {
             try {
-                this.logger.info({
-                    userId: userId,
-                    issuerId: issuerId,
-                    issuerRole: issuerSession.role
-                }, 'Fetching verifiable credentials',);
+                this.logger.log(`Fetching verifiable credentials - userId: ${userId}, issuerId: ${issuerId}, issuerRole: ${issuerSession.role}`);
                 let issuer: IDIssuer = await this.getIssuerForOwner(<string>issuerSession._id, issuerId);
 
                 let filters = {
@@ -341,13 +290,7 @@ export class CredentialsService {
 
                 resolve(verifiableCredentials);
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    issuerId: issuerId,
-                    error: error.message,
-                    method: 'CredentialsService.fetchVC()',
-                    stack: error.stack
-                }, 'Error fetching verifiable credentials');
+                this.logger.error(`Error fetching verifiable credentials - userId: ${userId}, issuerId: ${issuerId}, error: ${error.message}, method: CredentialsService.fetchVC()`, error.stack);
                 await this.discordLogger.error(`fetchVC error: ${error.message}`, error.stack, 'CredentialsService.fetchVC');
                 if (error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));
@@ -367,11 +310,7 @@ export class CredentialsService {
     ): Promise<IDCredential> {
         return new Promise(async (resolve, reject) => {
             try {
-                this.logger.info({
-                    userId: userId,
-                    issuerId: issuerId,
-                    expirationDate: expiration_date
-                },'Issuing Verifiable Credential');
+                this.logger.log(`Issuing Verifiable Credential - userId: ${userId}, issuerId: ${issuerId}, expirationDate: ${expiration_date}`);
                 let issuer: IDIssuer = await this.getIssuerForOwner(sessionId, issuerId);
                 let identity: IdentityDocument = await this.getIdentityForUser(userId);
 
@@ -386,14 +325,10 @@ export class CredentialsService {
 
                 //if the user already has an active credential, we throw an error... ()
                 if (credential && credential.internal_status == IDCredentialStatus.ACTIVE) {
-                    this.logger.warn({
-                        issuer: issuer.issuer,
-                        method: 'CredentialsService.changeVCStatus()'
-                    }, `User already has an active credential with issuer ${issuer.issuer}.`);
+                    this.logger.warn(`User already has an active credential with issuer ${issuer.issuer}.`);
                      resolve(credential.toJSON());
                      console.log('User already has an active credential with issuer', issuer.issuer);
                      return;
-                    // throw new Error(`User already has an active credential with issuer ${issuer.issuer}.`);
                 }
 
                 // if the user does not have an identity, we create a new one...
@@ -462,12 +397,7 @@ export class CredentialsService {
 
                 resolve(credential.toJSON());
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    issuerId: issuerId,
-                    error: error.message
-                }, 'Error in issueVC');
-
+                this.logger.error(`Error in issueVC - userId: ${userId}, issuerId: ${issuerId}, error: ${error.message}`);
                 if (error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));
                 } else {
@@ -485,11 +415,7 @@ export class CredentialsService {
     ): Promise<IDCredentialDocument> {
         return new Promise(async (resolve, reject) => {
             try {
-                this.logger.info({
-                    userId: userId,
-                    issuer: issuer.issuer,
-                    expirationDate: expiration_date
-                }, 'Registering new VC');
+                this.logger.log(`Registering new VC - userId: ${userId}, issuer: ${issuer.issuer}, expirationDate: ${expiration_date}`);
 
                 // SMART-NODE CALL: asking the smart-nodes to register the VC document...
                 let register: IHedera.IDID.IVC.IList.IResponse = (await this.nodeClientService.axios.post(
@@ -508,19 +434,10 @@ export class CredentialsService {
                     chain_status: ChainVCStatus.ACTIVE,
                     expiration_date: new Date(Number(expiration_date))
                 });
-                this.logger.info({
-                    credentialId: credential._id,
-                    fileId: credential.file_id
-                }, 'VC registered successfully');
+                this.logger.log(`VC registered successfully - credentialId: ${credential._id}, fileId: ${credential.file_id}`);
                 resolve(credential);
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    issuer: issuer.issuer,
-                    error: error.message,
-                    method: 'CredentialsService.registerVC()',
-                    stack: error.stack
-                }, 'Error registering VC');
+                this.logger.error(`Error registering VC - userId: ${userId}, issuer: ${issuer.issuer}, error: ${error.message}, method: CredentialsService.registerVC()`, error.stack);
                 if (error.message.includes('All promises were rejected')) {
                     console.info("All promises were rejected")
                 } else {
@@ -541,10 +458,7 @@ export class CredentialsService {
     ): Promise<ISmartNode.ISmartTransaction.IDetails> {
         return new Promise(async (resolve, reject) => {
             try {
-                this.logger.info({
-                    userId: userId,
-                    nftId: nftId
-                }, 'Associating NFT');
+                this.logger.log(`Associating NFT - userId: ${userId}, nftId: ${nftId}`);
                 let wallet: IVC.Wallet.History = await this.walletsService.getWallet(userId);
 
                 if (!wallet) {
@@ -555,20 +469,10 @@ export class CredentialsService {
                     walletId: wallet.id,
                     tokenId: nftId
                 });
-                this.logger.info({
-                    userId: userId,
-                    nftId: nftId,
-                    walletId: wallet.id
-                }, 'NFT associated successfully');
+                this.logger.log(`NFT associated successfully - userId: ${userId}, nftId: ${nftId}, walletId: ${wallet.id}`);
                 resolve(associate);
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    nftId: nftId,
-                    error: error.message,
-                    method: 'CredentialsService.associateNFT()',
-                    stack: error.stack
-                }, 'Error associating NFT');
+                this.logger.error(`Error associating NFT - userId: ${userId}, nftId: ${nftId}, error: ${error.message}, method: CredentialsService.associateNFT()`, error.stack);
                 await this.discordLogger.error(`associateNFT error: ${error.message} for user ${userId}`, error.stack, 'CredentialsService.associateNFT()');
                 reject(error);
             }
@@ -650,25 +554,14 @@ export class CredentialsService {
 
                     await credential.save();
 
-                    this.logger.info({
-                        credentialOwner: credential.owner,
-                        serialNumber: credential.serial_number,
-                        ipfsHash: response.data.IpfsHash
-                    }, 'NFT minted successfully');
+                    this.logger.log(`NFT minted successfully - credentialOwner: ${credential.owner}, serialNumber: ${credential.serial_number}, ipfsHash: ${response.data.IpfsHash}`);
                     resolve(credential);
                 } else {
                     reject('Transaction failed');
                 }
             } catch (error) {
-                this.logger.error({
-                    credentialOwner: credential.owner,
-                    issuer: issuer.issuer,
-                    error: error.message,
-                    method: 'CredentialsService.mintNft()',
-                    stack: error.stack
-                }, 'Error minting NFT');
+                this.logger.error(`Error minting NFT - credentialOwner: ${credential.owner}, issuer: ${issuer.issuer}, error: ${error.message}, method: CredentialsService.mintNft()`, error.stack);
                 await this.discordLogger.error(`mintNft error: ${error.message} for user ${credential.owner}`, error.stack, 'CredentialsService.mintNft()');
-
                 if (error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));
                 } else {
@@ -738,12 +631,7 @@ export class CredentialsService {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                    this.logger.info({
-                        credentialOwner: credential.owner,
-                        issuer: issuer.issuer,
-                        serialNumber: credential.serial_number,
-                        transactionId: submitTx.transactionId.toString()
-                    }, 'NFT sent successfully');
+                    this.logger.log(`NFT sent successfully - credentialOwner: ${credential.owner}, issuer: ${issuer.issuer}, serialNumber: ${credential.serial_number}, transactionId: ${submitTx.transactionId.toString()}`);
 
                     credential.internal_status = IDCredentialStatus.DELIVERED;
                     credential.markModified('status');
@@ -754,14 +642,7 @@ export class CredentialsService {
                     reject('Transaction failed');
                 }
             } catch (error) {
-                this.logger.error({
-                    credentialOwner: credential.owner,
-                    issuer: issuer.issuer,
-                    serialNumber: credential.serial_number,
-                    error: error.message,
-                    method: 'CredentialsService.sendNft()',
-                    stack: error.stack
-                }, 'Error sending NFT');
+                this.logger.error(`Error sending NFT - credentialOwner: ${credential.owner}, issuer: ${issuer.issuer}, serialNumber: ${credential.serial_number}, error: ${error.message}, method: CredentialsService.sendNft()`, error.stack);
                 if (error.message.includes('All promises were rejected')) {
                     console.info(error)
                 } else {
@@ -776,7 +657,6 @@ export class CredentialsService {
         });
     }
 
-
     private async freezeNft(
         credential: IDCredentialDocument,
         issuer: IDIssuer
@@ -786,7 +666,6 @@ export class CredentialsService {
                 let wallet: IVC.Wallet.History = await this.walletsService.getWallet(credential.owner);
                 let tokenStatus = await this.walletsService.getToken(credential.owner);
                 console.info('FREEZ getToken', tokenStatus);
-                // console.info('freezeNft getToken ',credential.owner,tokenStatus.tokens[0].freeze_status);
                 if (
                     tokenStatus &&
                     tokenStatus.tokens &&
@@ -795,13 +674,9 @@ export class CredentialsService {
                     tokenStatus.tokens[0].freeze_status === 'FROZEN' &&
                     tokenStatus.tokens[0].token_id === issuer.nftID
                 ) {
-                    this.logger.info(
-                        'NFT freeze_status is FROZEN for the student wallet ' + wallet.id,
-                        credential.owner
-                    );
+                    this.logger.log(`NFT freeze_status is FROZEN for the student wallet ${wallet.id} - owner: ${credential.owner}`);
                     credential.internal_status = IDCredentialStatus.ACTIVE;
                     credential.markModified('status');
-
                     await credential.save();
                     resolve(credential);
                     return;
@@ -838,11 +713,7 @@ export class CredentialsService {
                     reject('Transaction failed');
                 }
             } catch (error) {
-                this.logger.error({
-                    owner: credential.owner,
-                    error: error.message,
-                    method: 'CredentialsService.changeVCStatus()'
-                }, `freezeNft error: ${error.message} for user ${credential.owner}`); 
+                this.logger.error(`freezeNft error: ${error.message} for user ${credential.owner} - owner: ${credential.owner}, error: ${error.message}, method: CredentialsService.changeVCStatus()`, error.stack);
                 await this.discordLogger.error(`freezeNft error: ${error.message} for user ${credential.owner}`, error.stack, 'CredentialsService.freezeNft()');
                 if (error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));
@@ -861,17 +732,12 @@ export class CredentialsService {
             try {
                 let wallet: IVC.Wallet.History = await this.walletsService.getWallet(credential.owner);
                 let tokenStatus = await this.walletsService.getToken(credential.owner);
-                // console.info('unfreezeNft getToken',credential.owner,tokenStatus.tokens[0].freeze_status);
                 if (
                     tokenStatus &&
                     tokenStatus.tokens &&
                     tokenStatus.tokens.length == 0
                 ) {
-                    this.logger.info({
-                        walletId: wallet.id,
-                        owner: credential.owner,
-                        method: 'CredentialsService.unfreezeNft()'
-                    }, `UNFROZEN: TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet ${wallet.id}`);
+                    this.logger.log(`UNFROZEN: TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet ${wallet.id} - walletId: ${wallet.id}, owner: ${credential.owner}, method: CredentialsService.unfreezeNft()`);
                     resolve(credential);
                     return;
                 }
@@ -883,11 +749,7 @@ export class CredentialsService {
                     tokenStatus.tokens[0].freeze_status === 'UNFROZEN' &&
                     tokenStatus.tokens[0].token_id === issuer.nftID
                 ) {
-                    this.logger.info({
-                        walletId: wallet.id,
-                        owner: credential.owner,
-                        method: 'CredentialsService.changeVCStatus()'
-                    }, `NFT freeze_status is UNFROZEN for the student wallet ${wallet.id}`);
+                    this.logger.log(`NFT freeze_status is UNFROZEN for the student wallet ${wallet.id} - walletId: ${wallet.id}, owner: ${credential.owner}, method: CredentialsService.changeVCStatus()`);
                     resolve(credential);
                     return;
                 }
@@ -920,13 +782,7 @@ export class CredentialsService {
                 }
             } catch (error) {
                 if (error.message.includes('_NOT_ASSOCIATED_TO_')) {
-
-                    this.logger.info({
-                        owner: credential.owner,
-                        method: 'CredentialsService.unfreezeNft()'
-                    }, `Resolving -- TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet ${credential.owner}`);
-
-
+                    this.logger.log(`Resolving -- TOKEN_NOT_ASSOCIATED_TO_ACCOUNT UNFROZEN for the student wallet ${credential.owner} - owner: ${credential.owner}, method: CredentialsService.unfreezeNft()`);
                     resolve(credential);
                     return;
                 }
@@ -972,13 +828,7 @@ export class CredentialsService {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                    this.logger.info({
-                        credentialOwner: credential.owner,
-                        issuer: issuer.issuer,
-                        serialNumber: credential.serial_number,
-                        transactionId: submitTx.transactionId.toString()
-                    }, 'NFT wiped successfully');
-
+                    this.logger.log(`NFT wiped successfully - credentialOwner: ${credential.owner}, issuer: ${issuer.issuer}, serialNumber: ${credential.serial_number}, transactionId: ${submitTx.transactionId.toString()}`);
                     credential.internal_status = IDCredentialStatus.BURNED;
                     credential.markModified('status');
                     await credential.save();
@@ -988,14 +838,7 @@ export class CredentialsService {
                     reject('Transaction failed');
                 }
             } catch (error) {
-                this.logger.error({
-                    credentialOwner: credential.owner,
-                    issuer: issuer.issuer,
-                    serialNumber: credential.serial_number,
-                    error: error.message,
-                    method: 'CredentialsService.wipeNft()',
-                    stack: error.stack
-                }, 'Error wiping NFT');
+                this.logger.error(`Error wiping NFT - credentialOwner: ${credential.owner}, issuer: ${issuer.issuer}, serialNumber: ${credential.serial_number}, error: ${error.message}, method: CredentialsService.wipeNft()`, error.stack);
                 await this.discordLogger.error(`wipeNft error: ${error.message}`, error.stack, 'CredentialsService.wipeNft()');
                 if (error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));

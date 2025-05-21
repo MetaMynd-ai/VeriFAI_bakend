@@ -8,16 +8,11 @@ import {HttpService} from '@nestjs/axios';
 import {IHedera} from '@hsuite/types';
 import {HederaClientHelper} from '@hsuite/helpers';
 import {AxiosError} from 'axios';
-import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
 
 @Injectable()
 export class HtsService {
-
-    @InjectPinoLogger(HtsService.name)
-    private readonly logger: PinoLogger
-
-        
-        
+    private readonly logger = new Logger(HtsService.name);
+    
     private environment: string;
     private node: IHedera.IOperator;
     private hederaClient: HederaClientHelper;
@@ -65,7 +60,7 @@ export class HtsService {
                 // Add successful result
                 results.push({accountId, status: receipt.status === Status.Success ? 'success' : 'failed'});
 
-                this.logger.info({
+                this.logger.log({
                     accountId: accountId,
                     tokenId: tokenId
                 }, 'Token unfroze successfully');
@@ -82,7 +77,7 @@ export class HtsService {
                 });
             }
         }
-        this.logger.info({
+        this.logger.log({
             totalAccounts: accountIds.length,
         }, 'Unfreeze accounts process completed');
         return results;
@@ -117,7 +112,7 @@ export class HtsService {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                    this.logger.info({
+                    this.logger.log({
                         accountId: accountId,
                         serialNumber: serial_number,
                         tokenId: tokenId

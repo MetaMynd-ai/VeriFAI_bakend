@@ -5,7 +5,7 @@ export default () => ({
       workers: null
     },
     ApiKeyModule: {
-      enabled: true
+      enabled: false
     },
     ThrottlerModule: {
       enabled: true,

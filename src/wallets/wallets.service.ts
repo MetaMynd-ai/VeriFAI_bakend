@@ -39,12 +39,10 @@ import {CypherService} from 'src/cypher/cypher.service'
 import {ConfigService} from '@nestjs/config'
 import * as lodash from 'lodash'
 import {DiscordLogger} from 'src/common/logger/discord-logger.service'
-import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
 
 @Injectable()
 export class WalletsService implements OnModuleInit {
-    @InjectPinoLogger(WalletsService.name)
-    private readonly logger: PinoLogger
+    private readonly logger = new Logger(WalletsService.name);
 
     private hederaClient: HederaClientHelper;
     private maxAutomaticTokenAssociations: number;
@@ -135,13 +133,7 @@ export class WalletsService implements OnModuleInit {
 
                     token['nfts'] = nftsForToken;
                 });
-                this.logger.info({
-                    userId: userId,
-                    accountId: wallet.account.id,
-                    tokenCount: wallet.account.balance?.tokens?.length || 0,
-                    nftCount: nfts?.length || 0,
-                    transactionCount: wallet.transactions.length
-                }, 'Wallet details fetched successfully');
+                this.logger.log(`Wallet details fetched successfully - userId: ${userId}, accountId: ${wallet.account.id}, tokenCount: ${wallet.account.balance?.tokens?.length || 0}, nftCount: ${nfts?.length || 0}, transactionCount: ${wallet.transactions.length}`);
 
                 resolve({
                     ...wallet.account,
@@ -153,9 +145,7 @@ export class WalletsService implements OnModuleInit {
             } catch (error) {
 
                 if (error.message.includes('wallet not found')) {
-                    this.logger.info({
-                        userId: userId
-                    }, 'Wallet not found');
+                    this.logger.log(`Wallet not found - userId: ${userId}`);
 
                 } else {
                     this.logger.error({
@@ -218,11 +208,7 @@ export class WalletsService implements OnModuleInit {
 
                     await walletDocument.save();
 
-                    this.logger.info({
-                        msg: 'Wallet created successfully',
-                        userId: createWalletRequest.userId,
-                        accountId: receipt.accountId.toString()
-                    });
+                    this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.userId}, accountId: ${receipt.accountId.toString()}`);
 
                     resolve(<Wallet>walletDocument.toJSON());
                 } else {
@@ -265,11 +251,7 @@ export class WalletsService implements OnModuleInit {
 
                 if (receipt.status == Status.Success) {
                    
-                    this.logger.info({
-                      
-                        tokenId: associateWalletRequest.tokenId,
-                        walletId: associateWalletRequest.walletId
-                    }, 'Token associated successfully',);
+                    this.logger.log(`Token associated successfully - tokenId: ${associateWalletRequest.tokenId}, walletId: ${associateWalletRequest.walletId}`);
                     resolve({
                         status: receipt.status.toString(),
                         transactionId: submitTx.transactionId.toString()
@@ -312,12 +294,7 @@ export class WalletsService implements OnModuleInit {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                    this.logger.info({
-                 
-                        tokenId: associateWalletRequest.tokenId,
-                        walletId: associateWalletRequest.walletId,
-                        transactionId: submitTx.transactionId.toString()
-                    }, 'Token dissociation successful');
+                    this.logger.log(`Token dissociation successful - tokenId: ${associateWalletRequest.tokenId}, walletId: ${associateWalletRequest.walletId}, transactionId: ${submitTx.transactionId.toString()}`);
                   
                     resolve({
                         status: receipt.status.toString(),
@@ -384,23 +361,14 @@ export class WalletsService implements OnModuleInit {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                    this.logger.info({
-                        userId: withdraw.userId,
-                        tokenId: withdraw.token.id,
-                        amount: withdraw.amount,
-                        transactionId: submitTx.transactionId.toString()
-                    }, 'Token withdrawal successful');
+                    this.logger.log(`Token withdrawal successful - userId: ${withdraw.userId}, tokenId: ${withdraw.token.id}, amount: ${withdraw.amount}, transactionId: ${submitTx.transactionId.toString()}`);
                     let withdrawResponse: I_IVC.IWallet.IResponse.IWithdraw = {
                         amount: withdraw.amount,
                         date: moment().unix(),
                         transactionId: submitTx.transactionId.toString().toString(),
                         status: I_IVC.IWallet.IResponse.IWthdrawStatus.COMPLETED
                     };
-                    this.logger.info({
-                        userId: withdraw.userId,
-                        tokenId: withdraw.token.id,
-                        amount: withdraw.amount
-                    },'Token withdrawal completed');
+                    this.logger.log(`Token withdrawal completed - userId: ${withdraw.userId}, tokenId: ${withdraw.token.id}, amount: ${withdraw.amount}`);
                     resolve(withdrawResponse);
                 } else {
                     throw (new Error(`transaction failed with status ${receipt.status}`));
@@ -452,10 +420,7 @@ export class WalletsService implements OnModuleInit {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                    this.logger.info({
-                        userId: userId,
-                        transactionId: submitTx.transactionId.toString()
-                    }, 'Wallet deletion successful');
+                    this.logger.log(`Wallet deletion successful - userId: ${userId}, transactionId: ${submitTx.transactionId.toString()}`);
                     await walletDocument.deleteOne();
                   
                     resolve({
@@ -499,11 +464,7 @@ export class WalletsService implements OnModuleInit {
                 // SMART-NODE CALL: fetching token relationships for the specified wallet...
                 const response = await this.nodeClientService.axios.get(`/accounts/restful/${walletId}/tokens`, {
                 });
-                this.logger.info({
-                    userId: userId,
-                    walletId: walletId,
-                    tokenCount: response.data?.tokens?.length || 0
-                },'Successfully retrieved wallet tokens',);
+                this.logger.log(`Successfully retrieved wallet tokens - userId: ${userId}, walletId: ${walletId}, tokenCount: ${response.data?.tokens?.length || 0}`);
                 // resolving the response data...
                 resolve(response.data);
             } catch (error) {
@@ -530,11 +491,7 @@ export class WalletsService implements OnModuleInit {
                     `/hts/restful/tokens/${tokenId}/nfts/${serialNumber}`
                 );
 
-                this.logger.info({
-                    msg: 'Successfully retrieved NFT information',
-                    tokenId: tokenId,
-                    serialNumber: serialNumber
-                });
+                this.logger.log(`Successfully retrieved NFT information - tokenId: ${tokenId}, serialNumber: ${serialNumber}`);
 
 
                 resolve(response.data);

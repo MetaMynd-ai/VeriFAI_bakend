@@ -10,12 +10,10 @@ import { Model } from 'mongoose';
 import { WalletsService } from 'src/wallets/wallets.service';
 import { IVC } from 'src/wallets/interfaces/ivc.namespace';
 import { AxiosError } from 'axios';
-import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
 
 @Injectable()
 export class IdentitiesService {
-    @InjectPinoLogger(IdentitiesService.name)
-    private readonly logger: PinoLogger
+    private readonly logger = new Logger(IdentitiesService.name);
 
     private environment: string;
     private node: IHedera.IOperator;
@@ -53,20 +51,18 @@ export class IdentitiesService {
                 // SMART-NODE CALL: asking the smart-nodes to fetch the did document...
                 let did: IHedera.IDID.IDocument.IInfo = (await this.nodeClientService.axios.get(
                     `/did/${identity.did_id}`)).data;
-                this.logger.info({
-                    userId: userId,
-                    didId: did.id
-                }, 'DID fetched successfully');
+                this.logger.log(
+                    `DID fetched successfully - User: ${userId}, DID: ${did.id}`
+                );
                 resolve({
                     identity,
                     did
                 });
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    error: error?.message,
-                    method: 'IdentitiesService.fetchDID()'
-                }, 'Error fetching DID');
+                this.logger.error(
+                    `Error fetching DID - User: ${userId}, Error: ${error?.message}`,
+                    'IdentitiesService.fetchDID()'
+                );
                 if(error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));
                 } else {
@@ -112,17 +108,15 @@ export class IdentitiesService {
                     did_id: did.id,
                     owner: userId
                 });
-                this.logger.info({
-                    userId: userId,
-                    didId: did.id
-                }, 'DID created successfully');
+                this.logger.log(
+                    `DID created successfully - User: ${userId}, DID: ${did.id}`
+                );
                 resolve(identity);
             } catch (error) {
-                this.logger.error({
-                    userId: userId,
-                    error: error?.message,
-                    method: 'IdentitiesService.createDID()'
-                }, 'Error creating DID',);
+                this.logger.error(
+                    `Error creating DID - User: ${userId}, Error: ${error?.message}`,
+                    'IdentitiesService.createDID()'
+                );
                 
                 if(error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));

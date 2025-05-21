@@ -12,7 +12,7 @@ export class IssuerAuthGuard implements CanActivate {
   ): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
 
-    if(!['admin', 'issuer'].includes(request.user.role)) {
+    if(!['admin', 'issuer','user'].includes(request.user.role)) {
       throw new UnauthorizedException('Sorry, only admin or issuer can issue a VC.');
     }
 

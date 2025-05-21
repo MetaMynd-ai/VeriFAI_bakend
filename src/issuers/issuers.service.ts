@@ -8,12 +8,10 @@ import { PublicKey } from '@hashgraph/sdk';
 import { IHedera } from '@hsuite/types';
 import { ConfigService } from '@nestjs/config';
 import { ClientService } from '@hsuite/client';
-import {PinoLogger, InjectPinoLogger} from 'nestjs-pino';
 
 @Injectable()
 export class IssuersService implements OnModuleInit {
-    @InjectPinoLogger(IssuersService.name)
-    private readonly logger: PinoLogger
+    private readonly logger = new Logger(IssuersService.name);
 
     private node: IHedera.IOperator;
     private environment: string;
@@ -66,18 +64,15 @@ export class IssuersService implements OnModuleInit {
                     did_id: did.id,
                     ...issuer
                 });
-                this.logger.info({
-                    sessionId: sessionId,
-                    issuerId: issuerDocument._id,
-                    issuerName: issuer.issuer
-                }, 'Issuer created successfully');
+                this.logger.log(
+                    `Issuer created successfully - Session: ${sessionId}, ID: ${issuerDocument._id}, Name: ${issuer.issuer}`
+                );
                 resolve(issuerDocument.toJSON());
             } catch (error) {
-                this.logger.error({
-                    sessionId: sessionId,
-                    error: error?.message,
-                    method: 'IssuersService.createIssuer()'
-                },'Error creating issuer');
+                this.logger.error(
+                    `Error creating issuer - Session: ${sessionId}, Error: ${error?.message}`,
+                    'IssuersService.createIssuer()'
+                );
                 reject(error);
             }
         });
