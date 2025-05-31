@@ -66,17 +66,12 @@ export class CredentialsController {
     description: "Returns a IDCredential object."
   })
   @ApiParam({
-    name: 'userId',
+    name: 'ownerId',
     required: true,
     type: 'string',
-    description: 'The userId you want to issue a VC for.'
+    description: 'The ownerId you want to issue a VC for.'
   })
-  @ApiParam({
-    name: 'issuerId',
-    required: true,
-    type: 'string',
-    description: 'The issuerId of the VC.'
-  })
+ 
   @ApiBody({
     type: VCIssuerMetadataPayload,
     isArray: false,
@@ -84,11 +79,10 @@ export class CredentialsController {
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Post(':issuerId/:userId')
+  @Post(':ownerId')
   async issueVC(
     @Req() request,
-    @Param('userId') userId: string,
-    @Param('issuerId') issuerId: string,
+    @Param('ownerId') ownerId: string,
     @Body() payload: VCIssuerMetadataPayload
   ): Promise<IDCredential> {
     try {
@@ -98,15 +92,15 @@ export class CredentialsController {
       // let objJsonB64 = Buffer.from(objJsonStr).toString("base64");
       // eyJvd25lciI6Iml0J3MgbWUiLCJ3b25kZXJmdWwiOmZhbHNlLCJvdGhlcnMiOlt7ImxvdmVseSI6Im5vcCIsImFnZSI6MjR9LHsibG92ZWx5IjoieWVzIiwiYWdlIjoyOH1dfQ==
 
-      return await this.credentialsService.issueVC(request.user._id, userId, issuerId, payload.base64metadata, payload.expiration_date);
+      return await this.credentialsService.issueVC(request.user._id, ownerId, payload.base64metadata, payload.expiration_date);
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
 
   @ApiOperation({
-    summary: 'fetch a VC status for a given userID.',
-    description: `this endpoint will fetch a VC for a given userID. 
+    summary: 'fetch a VC status for a given ownerId.',
+    description: `this endpoint will fetch a VC for a given ownerId. 
     </br>The VC Issuer will be the logged in user executing the request.
     </br>The logged in user must have a 'issuer' (or 'admin') role to execute this request, and must be whitelisted to issue a VC.
     </br>If the logged in user is a 'admin' role, they can fetch any VC.`
@@ -118,38 +112,32 @@ export class CredentialsController {
     description: "Returns a Object object."
   })
   @ApiParam({
-    name: 'userId',
+    name: 'ownerId',
     required: true,
     type: 'string',
-    description: 'The userId you want to retrieve a VC for.'
+    description: 'The ownerId you want to retrieve a VC for.'
   })
-  @ApiParam({
-    name: 'issuerId',
-    required: true,
-    type: 'string',
-    description: 'The issuerId of the VC.'
-  })
+ 
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Get(':issuerId/:userId')
+  @Get(':ownerId')
   async fetchVC(
     @Req() request,
-    @Param('userId') userId: string,
-    @Param('issuerId') issuerId: string
+    @Param('userId') ownerId: string
   ): Promise<Array<{
     credential: IDCredentialDocument,
     verifiableCredential: Verifiable<W3CCredential>
   }>> {
     try {
-      return await this.credentialsService.fetchVC(request.user, userId, issuerId);
+      return await this.credentialsService.fetchVC(request.user, ownerId, 'metamynd');
     } catch (error) {
       throw new BadRequestException(error.message);
     }
   }
 
   @ApiOperation({
-    summary: 'fetch a VC status for a given userID.',
-    description: 'this endpoint will fetch a VC status for a given userID.'
+    summary: 'fetch a VC status for a given ownerId.',
+    description: 'this endpoint will fetch a VC status for a given ownerId.'
   })
   @ApiOkResponse({
     type: Object,
@@ -158,10 +146,10 @@ export class CredentialsController {
     description: "Returns a Verifiable<W3CCredential> object."
   })
   @ApiParam({
-    name: 'userId',
+    name: 'ownerId',
     required: true,
     type: 'string',
-    description: 'The userId you want to retrieve a VC for.'
+    description: 'The ownerId you want to retrieve a VC for.'
   })
   @ApiParam({
     name: 'issuerId',
@@ -177,10 +165,10 @@ export class CredentialsController {
   @ApiQuery({ name: 'wipeNFT', required: false, type: Boolean, description: 'Wipe NFT WithOut Change VC' })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Put(':issuerId/:userId/:credetialId')
+  @Put(':issuerId/:ownerId/:credetialId')
   async changeVCStatus(
     @Req() request,
-    @Param('userId') userId: string,
+    @Param('ownerId') ownerId: string,
     @Param('issuerId') issuerId: string,
     @Param('credetialId') credetialId: string,
     @Body() payload: VCStatusChange,
@@ -188,7 +176,7 @@ export class CredentialsController {
   ): Promise<{ _id: string, chain_status: string; internal_status: string }> {
     const wipeNFTWithOutChangeVC = wipeNFT === 'true';
     try {
-      return await this.credentialsService.changeVCStatus(request.user._id, userId, issuerId, credetialId, payload,wipeNFTWithOutChangeVC);
+      return await this.credentialsService.changeVCStatus(request.user._id, ownerId, issuerId, credetialId, payload,wipeNFTWithOutChangeVC);
     } catch (error) {
       throw new BadRequestException(error.message);
     }

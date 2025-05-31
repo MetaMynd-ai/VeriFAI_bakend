@@ -8,6 +8,7 @@ import { PublicKey } from '@hashgraph/sdk';
 import { IHedera } from '@hsuite/types';
 import { ConfigService } from '@nestjs/config';
 import { ClientService } from '@hsuite/client';
+import { clearScreenDown } from 'readline';
 
 @Injectable()
 export class IssuersService implements OnModuleInit {
@@ -28,11 +29,10 @@ export class IssuersService implements OnModuleInit {
     async onModuleInit(): Promise<void> {}
 
     async getIssuers(
-        sessionId: string
     ): Promise<Array<IDIssuer>> {
         return new Promise(async (resolve, reject) => { 
             try {
-                const issuers: Array<IDIssuer> = await this.issuerModel.find({ owner: sessionId }).exec();
+                const issuers: Array<IDIssuer> = await this.issuerModel.find({ owner: '682bfc6864cec2bcfad2edda' }).exec();
                 resolve(issuers);
             } catch(error) {
                 reject(error);

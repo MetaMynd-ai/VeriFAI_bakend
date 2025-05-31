@@ -24,7 +24,10 @@ import { IpfsResolverModule, IpfsResolverService } from '@hsuite/ipfs-resolver';
 import { IdentitiesModule } from './identities/identities.module';
 import { IssuersModule } from './issuers/issuers.module';
 import { BalanceModule } from './balance/balance.module';
+import { HcsModule } from './hcs/hcs.module';
 import { HtsModule } from './hts/hts.module';
+import { AgentProfileModule } from './agent-profile/agent-profile.module';
+
 
 import testnet from '../config/settings/testnet';
 import mainnet from '../config/settings/mainnet';
@@ -75,7 +78,9 @@ import { LoggerModule } from './common/logger/logger.module';
     }),
     ConsoleModule,
     HtsModule,
-    LoggerModule
+    HcsModule,
+    LoggerModule,
+    AgentProfileModule
   ],
   controllers: [
     AppController
@@ -101,6 +106,7 @@ export class AppModule {
         IdentitiesModule,
         BalanceModule,
         HtsModule,
+        HcsModule,
         LoggerModule,
         SecurityThrottlerModule.forRoot(),  
         ClientModule.forRootAsync({

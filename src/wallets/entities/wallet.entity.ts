@@ -11,11 +11,19 @@ export class Wallet {
     @Prop({
         required: true,
         type: String,
-        array: false,
-        unique: true
+        array: false
     })
     @ApiProperty()
     owner: string
+
+    @Prop({
+        required: true,
+        enum: ['user', 'agent'],
+        default: 'user',
+        index: true
+    })
+    @ApiProperty({ description: 'Wallet type (user or agent)', enum: ['user', 'agent'], default: 'user' })
+    type: 'user' | 'agent'
 
     @Prop({
         required: true,
@@ -37,3 +45,5 @@ export class Wallet {
 }
 
 export const WalletSchema = SchemaFactory.createForClass(Wallet);
+// Enforce unique user wallet per owner
+WalletSchema.index({ owner: 1, type: 1 }, { unique: true, partialFilterExpression: { type: 'user' } });

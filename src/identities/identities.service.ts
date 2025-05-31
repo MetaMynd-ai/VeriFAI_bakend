@@ -42,6 +42,7 @@ export class IdentitiesService {
                 let identity: IdentityDocument = await this.identityModel.findOne({
                     owner: userId
                 });
+                console.log("identity", identity);
 
                 // if the user does not have an identity, we throw an error...
                 if (!identity) {

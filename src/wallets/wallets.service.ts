@@ -81,7 +81,13 @@ export class WalletsService implements OnModuleInit {
 
                 // if the wallet does not exist, then throw an error...
                 if (!wallet) {
+                    wallet=await this.walletModel.findOne({
+                    'account.id': userId
+                });
                     //await this.discordLogger.warn(`wallet not found for user ${userId}`, 'WalletsService.getWallet');
+                    
+                }
+                if (!wallet) {
                     throw (new Error(`wallet not found for user ${userId}`));
                 }
 
@@ -163,60 +169,73 @@ export class WalletsService implements OnModuleInit {
         });
     }
 
-    async createWallet(createWalletRequest: IVC.Wallet.Request.Create): Promise<Wallet> {
+    async createWallet(createWalletRequest: IVC.Wallet.Request.Create & { type?: 'user' | 'agent' }): Promise<Wallet> {
         return new Promise(async (resolve, reject) => {
             try {
-                // checking if the wallet exists for the given userId...
-                let walletDocument: WalletDocument = await this.walletModel.findOne({
-                    owner: createWalletRequest.userId
-                });
-
-                // if the wallet already exists, then throw an error...
-                if (walletDocument) {
-                    throw (new Error(`wallet already exists for user ${createWalletRequest.userId}`));
+                const type = createWalletRequest.type || 'user';
+                // Only one user wallet per owner
+                if (type === 'user') {
+                    let existing = await this.walletModel.findOne({ owner: createWalletRequest.userId, type: 'user' });
+                    if (existing) {
+                        throw new Error(`A user wallet already exists for user ${createWalletRequest.userId}`);
+                    }
                 }
-
                 // SMART-NODE CALL: creating the wallet...
+                const privateKey = PrivateKey.generate();
                 let payload: IHedera.ILedger.IAccounts.ICreateRequest = {
                     balance: 0,
                     maxAutomaticTokenAssociations: <number>this.maxAutomaticTokenAssociations,
                     isReceiverSignatureRequired: true
                 };
-
+                /*
+                const privateKey = PrivateKey.generate();
+                const payload = {
+                key: privateKey.publicKey.toString(),
+                balance: 0,
+                maxAutomaticTokenAssociations: 10,
+                isReceiverSignatureRequired: true,
+                };
+            
+                const response = await this.clientService.axios.post(`/accounts`, payload);
+                const transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
+            
+                const client = this.hederaClient.getClient();
+                const signTx = await transaction.sign(privateKey);
+                
+                const submitTx = await signTx.execute(client);
+                const receipt = await submitTx.getReceipt(client);
+            
+                if (receipt.status !== Status.Success) {
+                throw new Error(`Hedera account creation failed with status: ${receipt.status}`);
+                }
+                */
+                
                 let response = await this.nodeClientService.axios.post(`/accounts`, payload);
                 let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
-
-                // signing the transaction and submitting it to the network...
                 const client = this.hederaClient.getClient();
                 const signTx = await transaction.sign(
                     PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
                 );
-
                 const submitTx = await signTx.execute(client);
                 const receipt = await submitTx.getReceipt(client);
-
                 if (receipt.status == Status.Success) {
-                    // saving the wallet to the database...
-                    walletDocument = new this.walletModel({
+                    const walletDocument = new this.walletModel({
                         owner: createWalletRequest.userId,
-                        account: {
+                        type,
+                        account:  {
                             id: receipt.accountId.toString(),
                             balance: null
                         },
                         transactions: []
                     });
-
                     await walletDocument.save();
-
-                    this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.userId}, accountId: ${receipt.accountId.toString()}`);
-
+                    this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.userId}, type: ${type}, accountId: ${receipt.accountId.toString()}`);
                     resolve(<Wallet>walletDocument.toJSON());
                 } else {
-                    throw (new Error(`transaction failed with status ${receipt.status}`));
+                    throw new Error(`transaction failed with status ${receipt.status}`);
                 }
             } catch (error) {
                 this.logger.error({
-                
                     error: error.message,
                     method: 'WalletsService.createWallet()',
                     userId: createWalletRequest.userId,
@@ -455,6 +474,12 @@ export class WalletsService implements OnModuleInit {
 
                 // if the wallet does not exist, then throw an error...
                 if (!wallet) {
+                    wallet = await this.walletModel.findOne({
+                        'account.id': userId
+                    });
+                   
+                }
+                if (!wallet) {
                     throw (new Error(`wallet not found for user ${userId}`));
                 }
 
@@ -508,4 +533,11 @@ export class WalletsService implements OnModuleInit {
             }
         });
     }
+
+    async findOne(filter: any): Promise<WalletDocument | null> {
+        return this.walletModel.findOne(filter);
+    }
+    async findAllAgents(filter: any): Promise<WalletDocument[]> {
+  return this.walletModel.find(filter);
+}
 }

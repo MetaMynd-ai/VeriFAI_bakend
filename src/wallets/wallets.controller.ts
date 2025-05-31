@@ -92,6 +92,7 @@ export class WalletsController {
               });
       });
   }
+  @Post()
   @ApiOperation({
     summary: 'create a wallet for a specific user.',
     description: 'this endpoint will create a wallet for a specific user.'
@@ -103,21 +104,35 @@ export class WalletsController {
     description: "Returns a Wallet object."
   })
   @ApiBody({
-    type: IVC.Wallet.Request.Create,
-    required: true
+    schema: {
+      type: 'object',
+      properties: {
+        owner: { type: 'string' },
+        type: { type: 'string', enum: ['user', 'agent'], default: 'user' }
+      },
+      required: ['owner', 'type',]
+    }
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Post()
   async createWallet(
-    @Req() request,
-    @Body() createWalletRequest: IVC.Wallet.Request.Create
+    @Body() body: { owner: string; type?: 'user' | 'agent'; },
   ): Promise<Wallet> {
-    try {
-      return await this.walletsService.createWallet(createWalletRequest)
-    } catch(error) {
-      throw new BadRequestException(error.message);
+    const { owner, type = 'user' } = body;
+    if (!owner || !type) {
+      throw new BadRequestException('Missing required fields: owner, type');
     }
+    if (type !== 'user' && type !== 'agent') {
+      throw new BadRequestException('Invalid wallet type. Must be "user" or "agent".');
+    }
+    if (type === 'user') {
+      const existing = await this.walletsService.findOne({ owner, type: 'user' });
+      if (existing) {
+        throw new BadRequestException('A user wallet already exists for this owner.');
+      }
+    }
+    // For agent, allow multiple wallets per owner
+    return this.walletsService.createWallet({ userId: owner, type });
   }
 
   @ApiOperation({
@@ -243,7 +258,15 @@ export class WalletsController {
     }
   }
 
-  
-
+  @Get(':ownerId/agents')
+  @ApiOperation({ summary: 'Get all agent wallets for a given user/owner' })
+  @ApiOkResponse({ type: [Wallet], description: 'Returns all agent wallets for the given owner/userId.' })
+  @ApiParam({ name: 'ownerId', required: true, type: 'string', description: 'The owner/userId to fetch agent wallets for.' })
+  async getAgentWallets(
+    @Param('ownerId') ownerId: string
+  ): Promise<Wallet[]> {
+    //console.log('Fetching agent wallets for userId:', req);
+    return this.walletsService.findAllAgents({ owner: ownerId, type: 'agent' });
+  }
 
 }

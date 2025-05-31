@@ -117,7 +117,8 @@ export class CredentialsService {
         return new Promise(async (resolve, reject) => {
             try {
                 let filters = {
-                    owner: ownerId
+                    //owner: ownerId
+                    owner: '682bfc6864cec2bcfad2edda'
                 }
 
                 if (issuerId) {
@@ -255,7 +256,7 @@ export class CredentialsService {
                 let filters = {
                     owner: userId
                 }
-
+                console.log('filters', issuer, issuerSession);
                 if (issuerSession.role != 'admin') {
                     filters['issuer'] = issuer.issuer;
                 }
@@ -304,14 +305,13 @@ export class CredentialsService {
     async issueVC(
         sessionId: string,
         userId: string,
-        issuerId: string,
         base64metadata: string,
         expiration_date: string
     ): Promise<IDCredential> {
         return new Promise(async (resolve, reject) => {
             try {
-                this.logger.log(`Issuing Verifiable Credential - userId: ${userId}, issuerId: ${issuerId}, expirationDate: ${expiration_date}`);
-                let issuer: IDIssuer = await this.getIssuerForOwner(sessionId, issuerId);
+                this.logger.log(`Issuing Verifiable Credential - userId: ${userId}, expirationDate: ${expiration_date}`);
+                let issuer: IDIssuer = await this.getIssuerForOwner(sessionId, "metamynd");
                 let identity: IdentityDocument = await this.getIdentityForUser(userId);
 
                 // checking if the user already has an pending VC for that issuer
@@ -397,7 +397,7 @@ export class CredentialsService {
 
                 resolve(credential.toJSON());
             } catch (error) {
-                this.logger.error(`Error in issueVC - userId: ${userId}, issuerId: ${issuerId}, error: ${error.message}`);
+                this.logger.error(`Error in issueVC - userId: ${userId}, error: ${error.message}`);
                 if (error instanceof AxiosError) {
                     reject(new Error(error.response?.data?.message));
                 } else {
@@ -431,8 +431,7 @@ export class CredentialsService {
                     serial_number: 'to_be_minted',
                     iv: null,
                     internal_status: IDCredentialStatus.PENDING,
-                    chain_status: ChainVCStatus.ACTIVE,
-                    expiration_date: new Date(Number(expiration_date))
+                    chain_status: ChainVCStatus.ACTIVE
                 });
                 this.logger.log(`VC registered successfully - credentialId: ${credential._id}, fileId: ${credential.file_id}`);
                 resolve(credential);
@@ -493,13 +492,13 @@ export class CredentialsService {
                 const encoded = await this.cypherService.encrypt(JSON.stringify(vcMetadata));
 
                 const nftMetadata = {
-                    name: `iKad - Verifiable Credential`,
-                    description: `International Student Identity Card issued by Education Malaysia Global Services (EMGS)`,
-                    creator: 'EMGS',
+                    name: `AI Agent NFT`,
+                    description: `Decentralized AI Agent identity and capability profile NFT`,
+                    creator: 'TrustChain AI Agent Registry',
                     properties: {
                         encryptedText: encoded.encryptedText
                     },
-                    image: issuer.imageCID
+                    image: issuer.imageCID // You may want to use a generic AI agent image or icon
                 }
                 // Add custom metadata
                 const pinatametadata = JSON.stringify({

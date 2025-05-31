@@ -8,7 +8,7 @@
             "type": "node-terminal",
             "name": "EMGS - Smart APP",
             "request": "launch",
-            "command": "nest start --debug --watch",
+            "command": "yarn start:debug",
             "cwd": "${workspaceFolder}"
         }
     ]

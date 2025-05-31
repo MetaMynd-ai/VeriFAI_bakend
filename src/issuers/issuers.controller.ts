@@ -40,10 +40,9 @@ export class IssuersController {
   @ApiBadRequestResponse()
   @Get()
   async getIssuers(
-    @Req() request
   ): Promise<Array<IDIssuer>> {
     try {
-      return await this.issuersService.getIssuers(request.user._id);
+      return await this.issuersService.getIssuers();
     } catch(error) {
       throw new BadRequestException(error.message);
     }

@@ -130,11 +130,11 @@ export class IDCredential {
     chain_status: string
 
     @Prop({
-        required: true,
+        required: false,
         type: Date
     })
     @ApiProperty({
-        required: true,
+        required: false,
         type: Date,
         description: 'The expiration of the VC'
     })

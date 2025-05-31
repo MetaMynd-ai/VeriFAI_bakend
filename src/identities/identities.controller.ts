@@ -24,8 +24,8 @@ export class IdentitiesController {
   constructor(private readonly identitiesService: IdentitiesService) {}
 
   @ApiOperation({
-    summary: 'fetch the DID for a given userID.',
-    description: 'this endpoint will fetch the DID for a given userID.'
+    summary: 'fetch the DID for a given ownerID.',
+    description: 'this endpoint will fetch the DID for a given ownerID.'
   })
   @ApiOkResponse({
     type: Object,
@@ -34,31 +34,31 @@ export class IdentitiesController {
     description: "Returns a Object object."
   })
   @ApiParam({
-    name: 'userId',
+    name: 'ownerId',
     required: true,
     type: 'string',
-    description: 'The userId you want to fetch the DID for.'
+    description: 'The ownerId you want to fetch the DID for.'
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Get(':userId')
+  @Get(':ownerId')
   async fetchDID(
     @Req() request,
-    @Param('userId') userId: string
+    @Param('ownerId') ownerId: string
   ): Promise<{
     identity: IdentityDocument,
     did: Hedera.DID.Document.Info
   }> {
     try {
-      return await this.identitiesService.fetchDID(userId);
+      return await this.identitiesService.fetchDID(ownerId);
     } catch(error) {
       throw new BadRequestException(error.message);
     }
   }
 
   @ApiOperation({
-    summary: 'create a DID for a given userID.',
-    description: 'this endpoint will create a DIDfor a given userID.'
+    summary: 'create a DID for a given OwnerId.',
+    description: 'this endpoint will create a DIDfor a given OwnerId.'
   })
   @ApiOkResponse({
     type: Identity,
@@ -67,20 +67,20 @@ export class IdentitiesController {
     description: "Returns a Identity object."
   })
   @ApiParam({
-    name: 'userId',
+    name: 'ownerId',
     required: true,
     type: 'string',
-    description: 'The userId you want to create a DID for.'
+    description: 'The OwnerId you want to create a DID for. It can be a userId or an angent\'s accountId.'
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Post(':userId')
+  @Post(':ownerId')
   async createDID(
     @Req() request,
-    @Param('userId') userId: string
+    @Param('ownerId') ownerId: string
   ): Promise<Identity> {
     try {
-      return await this.identitiesService.createDID(userId);
+      return await this.identitiesService.createDID(ownerId);
     } catch(error) {
       throw new BadRequestException(error.message);
     }
