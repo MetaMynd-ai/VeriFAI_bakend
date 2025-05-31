@@ -127,4 +127,16 @@ export class IdentitiesService {
             }
         });
     }
+
+    async findByAccountId(accountId: string): Promise<IdentityDocument | null> {
+        return this.identityModel.findOne({ owner: accountId });
+    }
+
+    async findByOwner(owner: string): Promise<IdentityDocument | null> {
+        return this.identityModel.findOne({ owner });
+    }
+
+    async findWalletByAccountId(accountId: string) {
+        return this.walletsService.findByAccountId(accountId);
+    }
 }

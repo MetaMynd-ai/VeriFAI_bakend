@@ -1,29 +1,20 @@
-import { ApiProperty } from '@nestjs/swagger';
 import { AgentCapability } from '../entities/agent-capability.enum';
+import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateAgentProfileDto {
-  @ApiProperty({ description: 'Agent unique identifier (DID or UUID)' })
+  @ApiProperty({ description: 'Agent ID (external identifier, e.g. UUID or short code)' })
   agentId: string;
 
-  @ApiProperty({ description: 'Agent Hedera account ID' })
-  hederaAccountId: string;
+  @ApiProperty({ description: 'Agent description' })
+  agentDescription: string;
 
   @ApiProperty({ description: 'Agent URL (endpoint)' })
   url: string;
 
   @ApiProperty({
-    description: 'Agent capabilities (array of AgentCapability enum values)',
+    description: 'Agent capabilities (array of AgentCapability enum keys)',
     isArray: true,
-    enum: AgentCapability
+    enum: Object.keys(AgentCapability).filter(k => isNaN(Number(k)))
   })
-  capability: AgentCapability[];
-
-  @ApiProperty({ description: 'Inbound topic ID' })
-  inboundTopicId: string;
-
-  @ApiProperty({ description: 'Outbound topic ID' })
-  outboundTopicId: string;
-
-  @ApiProperty({ description: 'Communication topic ID' })
-  communicationTopicId: string;
+  capability: (keyof typeof AgentCapability)[];
 }

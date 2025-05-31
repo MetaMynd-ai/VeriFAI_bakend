@@ -540,4 +540,7 @@ export class WalletsService implements OnModuleInit {
     async findAllAgents(filter: any): Promise<WalletDocument[]> {
   return this.walletModel.find(filter);
 }
+    async findByAccountId(accountId: string): Promise<WalletDocument | null> {
+        return this.walletModel.findOne({ 'account.id': accountId });
+    }
 }

@@ -5,29 +5,33 @@ import { AgentCapability } from './agent-capability.enum';
 
 @Schema({ timestamps: true })
 export class AgentProfile extends Document {
-  @ApiProperty({ description: 'Agent unique identifier (DID or UUID)' })
+  @ApiProperty({ description: 'Agent DID (unique identifier)' })
   @Prop({ required: true, unique: true })
-  agentId: string;
+  agentDid: string;
 
-  @ApiProperty({ description: 'Agent Hedera account ID' })
+  @ApiProperty({ description: 'Agent owner DID' })
   @Prop({ required: true })
-  hederaAccountId: string;
+  agentOwnerDID: string;
+
+  @ApiProperty({ description: 'Agent description' })
+  @Prop({ required: true })
+  agentDescription: string;
 
   @ApiProperty({ description: 'Agent URL (endpoint)' })
   @Prop({ required: true })
   url: string;
 
   @ApiProperty({
-    description: 'Agent capabilities (array of AgentCapability enum values)',
+    description: 'Agent capabilities (array of AgentCapability enum keys)',
     isArray: true,
-    enum: AgentCapability
+    enum: Object.keys(AgentCapability).filter(k => isNaN(Number(k)))
   })
   @Prop({
-    type: [Number],
+    type: [String],
     required: true,
-    enum: AgentCapability
+    enum: Object.keys(AgentCapability).filter(k => isNaN(Number(k)))
   })
-  capability: AgentCapability[];
+  capability: (keyof typeof AgentCapability)[];
 
   @ApiProperty({ description: 'Inbound topic ID' })
   @Prop({ required: true })
@@ -40,6 +44,14 @@ export class AgentProfile extends Document {
   @ApiProperty({ description: 'Communication topic ID' })
   @Prop({ required: true })
   communicationTopicId: string;
+
+  @ApiProperty({ description: 'Agent Hedera account ID' })
+  @Prop({ required: true })
+  agentAccountId: string;
+
+  @ApiProperty({ description: 'Agent ID (external identifier, e.g. UUID or short code)' })
+  @Prop({ required: true, unique: true })
+  agentId: string;
 }
 
 export const AgentProfileSchema = SchemaFactory.createForClass(AgentProfile);

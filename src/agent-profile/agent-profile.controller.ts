@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, BadRequestException } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse, ApiBody } from '@nestjs/swagger';
 import { AgentProfileService } from './agent-profile.service';
 import { CreateAgentProfileDto } from './dto/create-agent-profile.dto';
@@ -13,15 +13,22 @@ export class AgentProfileController {
   @ApiOperation({ summary: 'Create a new agent profile' })
   @ApiBody({ type: CreateAgentProfileDto })
   @ApiOkResponse({ type: AgentProfile })
-  async create(@Body() createAgentProfileDto: CreateAgentProfileDto): Promise<AgentProfile> {
-    return this.agentProfileService.create(createAgentProfileDto);
+  async create(
+    @Body() createAgentProfileDto: CreateAgentProfileDto,
+    @Query('agentAccountId') agentAccountId: string
+  ): Promise<AgentProfile> {
+    try {
+      return await this.agentProfileService.create(createAgentProfileDto, agentAccountId);
+    } catch (error) {
+      throw new BadRequestException(error.message);
+    }
   }
 
-  @Get(':agentId')
-  @ApiOperation({ summary: 'Get agent profile by agentId' })
+  @Get(':agentAccountId')
+  @ApiOperation({ summary: 'Get agent profile by agentAccountId' })
   @ApiOkResponse({ type: AgentProfile })
-  async findByAgentId(@Param('agentId') agentId: string): Promise<AgentProfile | null> {
-    return this.agentProfileService.findByAgentId(agentId);
+  async findByAgentId(@Param('agentAccountId') agentAccountId: string): Promise<AgentProfile | null> {
+    return this.agentProfileService.findByAgentAccountId(agentAccountId);
   }
 
   @Get()
