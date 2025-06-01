@@ -1,4 +1,4 @@
-import { Injectable, Logger } from '@nestjs/common';
+import { forwardRef, Inject, Injectable, Logger } from '@nestjs/common';
 import { Hashing } from '@hsuite/did-sdk-js';
 import { PublicKey } from '@hashgraph/sdk';
 import { ClientService } from '@hsuite/client';
@@ -21,7 +21,8 @@ export class IdentitiesService {
     constructor(
         private readonly nodeClientService: ClientService,
         private configService: ConfigService,
-        private walletsService: WalletsService,
+       @Inject(forwardRef(() => WalletsService)) private readonly walletsService: WalletsService,
+  
         @InjectModel(Identity.name) private identityModel: Model<IdentityDocument>
     ) {
         this.environment = this.configService.get<string>('environment');
@@ -77,7 +78,9 @@ export class IdentitiesService {
         return new Promise(async (resolve, reject) => {
             try {
                 // preventing the creation of DID if the user doesn't have a wallet yet...
-                let wallet: IVC.Wallet.History = await this.walletsService.getWallet(userId);
+                let wallet = await this.walletsService.checkWallets(userId);
+              console.log("checkWallets", wallet);
+                console.log("wallet", wallet);
 
                 if (!wallet) {
                     throw new Error('User does not have a wallet.');

@@ -48,6 +48,7 @@ export class HcsController {
   })
   @ApiOkResponse({ description: 'Returns the transaction status or message receipt.' })
   async writeMessage(@Body() body: { topicId: string; message: string }) {
+    console.log('Writing message to topic:', body.topicId, 'Message:', body.message);
     return this.hcsService.writeMessageToTopic(body.topicId, body.message);
   }
 

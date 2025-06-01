@@ -14,11 +14,13 @@ import {
     LedgerId,
     PrivateKey,
     Status,
-    Transaction
+    Transaction,
+    AccountCreateTransaction
 } from '@hashgraph/sdk'
 import * as moment from 'moment'
 import {Model} from 'mongoose'
 import {InjectModel} from '@nestjs/mongoose'
+import axios from 'axios';
 
 import {
     IHedera,
@@ -39,7 +41,8 @@ import {CypherService} from 'src/cypher/cypher.service'
 import {ConfigService} from '@nestjs/config'
 import * as lodash from 'lodash'
 import {DiscordLogger} from 'src/common/logger/discord-logger.service'
-
+import { WalletsKeyService } from '../wallets-key/wallets-key.service';
+import { IdentitiesService } from 'src/identities/identities.service';
 @Injectable()
 export class WalletsService implements OnModuleInit {
     private readonly logger = new Logger(WalletsService.name);
@@ -57,7 +60,9 @@ export class WalletsService implements OnModuleInit {
         @InjectModel(Wallet.name) private walletModel: Model<WalletDocument>,
         @InjectModel(WalletTransaction.name) private walletTransactiontModel: Model<WalletTransactionDocument>,
         @InjectModel(IDIssuer.name) private issuerModel: Model<IDIssuerDocument>,
-        @InjectModel(IDCredential.name) private credentialModel: Model<IDCredentialDocument>
+        @InjectModel(IDCredential.name) private credentialModel: Model<IDCredentialDocument>,
+        private readonly walletsKeyService: WalletsKeyService,
+        private readonly identitiesService: IdentitiesService,
     ) {
         this.maxAutomaticTokenAssociations = Number(this.configService.get<string>('maxAutomaticTokenAssociations'));
         this.hederaClient = new HederaClientHelper(
@@ -93,7 +98,10 @@ export class WalletsService implements OnModuleInit {
 
                 // populating the transactions for the wallet...
                 await wallet.populate({path: 'transactions'});
+                console.log("wallet--", wallet);
 
+
+                
                 // SMART-NODE CALL: fetching the onchain balance for the wallet...
                 wallet.account.balance = (await this.nodeClientService.axios.get(
                     `/accounts/restful/${wallet.account.id}/tokens`)).data;
@@ -169,7 +177,7 @@ export class WalletsService implements OnModuleInit {
         });
     }
 
-    async createWallet(createWalletRequest: IVC.Wallet.Request.Create & { type?: 'user' | 'agent' }): Promise<Wallet> {
+    async createWallet(createWalletRequest: IVC.Wallet.Request.Create & { type?: 'user' | 'agent' }): Promise<{ wallet: Wallet, did: any }> {
         return new Promise(async (resolve, reject) => {
             try {
                 const type = createWalletRequest.type || 'user';
@@ -180,45 +188,29 @@ export class WalletsService implements OnModuleInit {
                         throw new Error(`A user wallet already exists for user ${createWalletRequest.userId}`);
                     }
                 }
-                // SMART-NODE CALL: creating the wallet...
+                // Generate account key
                 const privateKey = PrivateKey.generate();
-                let payload: IHedera.ILedger.IAccounts.ICreateRequest = {
-                    balance: 0,
-                    maxAutomaticTokenAssociations: <number>this.maxAutomaticTokenAssociations,
-                    isReceiverSignatureRequired: true
-                };
-                /*
-                const privateKey = PrivateKey.generate();
-                const payload = {
-                key: privateKey.publicKey.toString(),
-                balance: 0,
-                maxAutomaticTokenAssociations: 10,
-                isReceiverSignatureRequired: true,
-                };
-            
-                const response = await this.clientService.axios.post(`/accounts`, payload);
-                const transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
-            
+                const publicKey = privateKey.publicKey;
+                // Create Hedera account using SDK
+                const transaction = new AccountCreateTransaction()
+                    .setKey(publicKey)
+                    .setInitialBalance(0)
+                    .setMaxAutomaticTokenAssociations(this.maxAutomaticTokenAssociations)
+                    .setReceiverSignatureRequired(true);
                 const client = this.hederaClient.getClient();
-                const signTx = await transaction.sign(privateKey);
-                
-                const submitTx = await signTx.execute(client);
-                const receipt = await submitTx.getReceipt(client);
-            
-                if (receipt.status !== Status.Success) {
-                throw new Error(`Hedera account creation failed with status: ${receipt.status}`);
-                }
-                */
-                
-                let response = await this.nodeClientService.axios.post(`/accounts`, payload);
-                let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(response.data)));
-                const client = this.hederaClient.getClient();
-                const signTx = await transaction.sign(
-                    PrivateKey.fromString(this.smartConfigService.getOperator().privateKey)
-                );
+                // Freeze and sign with generated key
+                const frozenTx = await transaction.freezeWith(client);
+                const signTx = await frozenTx.sign(privateKey);
                 const submitTx = await signTx.execute(client);
                 const receipt = await submitTx.getReceipt(client);
                 if (receipt.status == Status.Success) {
+                    // Save private key in wallets-key module
+                    await this.walletsKeyService.saveKey({
+                        owner: createWalletRequest.userId,
+                        type,
+                        accountId: receipt.accountId.toString(),
+                        privateKey: privateKey.toString()
+                    });
                     const walletDocument = new this.walletModel({
                         owner: createWalletRequest.userId,
                         type,
@@ -229,8 +221,18 @@ export class WalletsService implements OnModuleInit {
                         transactions: []
                     });
                     await walletDocument.save();
+                    // Create DID for this user/agent
+                    let didResponse;
+                    if (type === 'agent') {
+                        didResponse = await this.identitiesService.createDID(receipt.accountId.toString());
+                    } else {
+                        didResponse = await this.identitiesService.createDID(createWalletRequest.userId);
+                    }
                     this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.userId}, type: ${type}, accountId: ${receipt.accountId.toString()}`);
-                    resolve(<Wallet>walletDocument.toJSON());
+                    resolve({
+                        wallet: <Wallet>walletDocument.toJSON(),
+                        did: didResponse
+                    });
                 } else {
                     throw new Error(`transaction failed with status ${receipt.status}`);
                 }
@@ -542,5 +544,14 @@ export class WalletsService implements OnModuleInit {
 }
     async findByAccountId(accountId: string): Promise<WalletDocument | null> {
         return this.walletModel.findOne({ 'account.id': accountId });
+    }
+
+    async checkWallets(userIdOrAccountId: string): Promise<boolean> {
+        // Check by owner
+        let wallet = await this.walletModel.findOne({ owner: userIdOrAccountId });
+        if (wallet) return true;
+        // Check by account.id
+        wallet = await this.walletModel.findOne({ 'account.id': userIdOrAccountId });
+        return !!wallet;
     }
 }

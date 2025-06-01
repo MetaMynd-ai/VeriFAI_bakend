@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 export class HcsService {
   constructor(private readonly configService: ConfigService) {}
 
-  async createHcsTopic(memo?: string): Promise<{ topicId: string }> {
+  async createHcsTopic(memo?: string): Promise<{ topicId: string}> {
     // Setup Hedera client
     const client = Client.forTestnet();
     client.setOperator(
@@ -23,7 +23,7 @@ export class HcsService {
     return { topicId: receipt.topicId.toString() };
   }
   
-  async writeMessageToTopic(topicId: string, message: string): Promise<{ status: string, topicId: string }> {
+  async writeMessageToTopic(topicId: string, message: string): Promise<{ status: string, topicId: string,topicSequenceNumber?: string  }> {
     let resolvedTopicId = topicId;
     if (topicId === 'register') {
       resolvedTopicId = this.configService.get<string>('DEV_AGENT_REGISTRY_TOPIC');
@@ -38,6 +38,6 @@ export class HcsService {
       .setMessage(message)
       .execute(client);
     const receipt = await tx.getReceipt(client);
-    return { status: receipt.status.toString(), topicId: resolvedTopicId };
+    return { status: receipt.status.toString(), topicId: resolvedTopicId , topicSequenceNumber: receipt.topicSequenceNumber.toString() };
   }
 }

@@ -117,7 +117,7 @@ export class WalletsController {
   @ApiBadRequestResponse()
   async createWallet(
     @Body() body: { owner: string; type?: 'user' | 'agent'; },
-  ): Promise<Wallet> {
+  ): Promise<{ wallet: Wallet, did: any }> {
     const { owner, type = 'user' } = body;
     if (!owner || !type) {
       throw new BadRequestException('Missing required fields: owner, type');

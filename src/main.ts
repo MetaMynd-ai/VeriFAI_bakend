@@ -57,9 +57,7 @@ async function bootstrap() {
   // making use of CSRF Protection...
   app.use(cookieParser());
 
-  // csurf seems not to be working when using passport/redis/jwt...
-  // app.use(csurf({ cookie: true }));
-
+ 
   // making use of Helmet...
   app.use(helmet({
     crossOriginResourcePolicy: false

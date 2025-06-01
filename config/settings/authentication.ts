@@ -27,7 +27,8 @@ export default (): {
                 sameSite: false,
                 httpOnly: true,
                 maxAge: 60000 * 60 * 24 * 364,
-                secure: process.env.NODE_ENV == 'mainnet' ? true : false
+                secure: false,  
+                //secure: process.env.NODE_ENV == 'mainnet' ? true : false
             },
             passport: IAuth.IConfiguration.IPassportStrategy.REDIS,
             appName: 'IVC-Node',

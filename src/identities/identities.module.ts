@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { forwardRef, Module } from '@nestjs/common';
 import { IdentitiesService } from './identities.service';
 import { IdentitiesController } from './identities.controller';
 import { MongooseModule } from '@nestjs/mongoose';
@@ -6,10 +6,9 @@ import { Identity, IdentitySchema } from './entities/identity.entity';
 import { WalletsModule } from 'src/wallets/wallets.module';
 import { CredentialsModule } from './credentials/credentials.module';
 import { RouterModule } from '@nestjs/core';
-
 @Module({
   imports: [
-    WalletsModule,
+    forwardRef(() => WalletsModule),
     CredentialsModule,
     RouterModule.register([
       {

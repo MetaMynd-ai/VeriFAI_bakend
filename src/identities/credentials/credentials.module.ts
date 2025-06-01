@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import {forwardRef, Module } from '@nestjs/common';
 import { CredentialsService } from './credentials.service';
 import { CredentialsController } from './credentials.controller';
 import { SmartConfigModule } from '@hsuite/smart-config';
@@ -11,12 +11,14 @@ import { APP_GUARD } from '@nestjs/core';
 import { IDIssuer, IDIssuerSchema } from '../../issuers/entities/issuer.entity';
 import { HttpModule } from '@nestjs/axios';
 import { CypherModule } from 'src/cypher/cypher.module';
+import { IdentitiesModule } from '../identities.module';
 
 @Module({
   imports: [
     HttpModule,
     SmartConfigModule,
-    WalletsModule,
+    forwardRef(() =>  WalletsModule),
+    forwardRef(() => IdentitiesModule),
     CypherModule,
     MongooseModule.forFeature([{ name: IDCredential.name, schema:IDCredentialSchema }]),
     MongooseModule.forFeature([{ name: IDIssuer.name, schema:IDIssuerSchema }]),
