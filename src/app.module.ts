@@ -15,7 +15,6 @@ import { RedisClientOptions } from 'redis';
 import { Config } from 'cache-manager';
 import { WalletsModule } from './wallets/wallets.module';
 import { ApiKeyModule } from '@hsuite/api-key';
-import { AuthModule } from '@hsuite/auth';
 import { SecurityThrottlerModule } from '@hsuite/throttler';
 import { IHedera } from '@hsuite/types';
 import { LedgerId } from '@hashgraph/sdk';
@@ -27,6 +26,7 @@ import { BalanceModule } from './balance/balance.module';
 import { HcsModule } from './hcs/hcs.module';
 import { HtsModule } from './hts/hts.module';
 import { AgentProfileModule } from './agent-profile/agent-profile.module';
+import { Auth3Module } from './auth3/auth3.module';
 
 
 import testnet from '../config/settings/testnet';
@@ -80,7 +80,8 @@ import { LoggerModule } from './common/logger/logger.module';
     HtsModule,
     HcsModule,
     LoggerModule,
-    AgentProfileModule
+    AgentProfileModule,
+    Auth3Module
   ],
   controllers: [
     AppController
@@ -124,12 +125,6 @@ export class AppModule {
             )
           })
         }),         
-        AuthModule.forRootAsync({
-          imports: [ConfigModule, IpfsResolverModule],
-          useExisting: ConfigService,
-          inject: [ConfigService, IpfsResolverService],
-          useFactory: () => (authentication().auth)
-        }),
         ...(
           modules().modules.ApiKeyModule.enabled ?
             [
