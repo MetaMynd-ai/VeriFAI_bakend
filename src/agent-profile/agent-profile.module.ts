@@ -5,12 +5,14 @@ import { AgentProfileService } from './agent-profile.service';
 import { AgentProfileController } from './agent-profile.controller';
 import { IdentitiesModule } from '../identities/identities.module';
 import { HcsModule } from '../hcs/hcs.module';
+import { DidKeyModule } from '../did-key/did-key.module';
 
 @Module({
   imports: [
     MongooseModule.forFeature([{ name: AgentProfile.name, schema: AgentProfileSchema }]),
     IdentitiesModule,
     HcsModule,
+    DidKeyModule,
   ],
   controllers: [AgentProfileController],
   providers: [AgentProfileService],

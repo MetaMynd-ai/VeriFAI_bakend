@@ -118,11 +118,11 @@ export class CredentialsService {
             try {
                 let filters = {
                     //owner: ownerId
-                    owner: '682bfc6864cec2bcfad2edda'
+                    owner: '683c7899f77356971003b321'
                 }
 
                 if (issuerId) {
-                    filters['issuer'] = issuerId;
+                    filters['issuer'] = 'metamynd';
                 }
 
                 let issuer: IDIssuer = await this.issuerModel.findOne(filters);

@@ -5,6 +5,8 @@ import { AgentProfile } from './entities/agent-profile.entity';
 import { CreateAgentProfileDto } from './dto/create-agent-profile.dto';
 import { IdentitiesService } from '../identities/identities.service';
 import { HcsService } from '../hcs/hcs.service';
+import { DidKeyService } from '../did-key/did-key.service';
+import { PrivateKey } from '@hashgraph/sdk';
 
 @Injectable()
 export class AgentProfileService {
@@ -12,6 +14,7 @@ export class AgentProfileService {
     @InjectModel(AgentProfile.name) private agentProfileModel: Model<AgentProfile>,
     private readonly identitiesService: IdentitiesService,
     private readonly hcsService: HcsService,
+    private readonly didKeyService: DidKeyService,
   ) {}
 
   async create(createAgentProfileDto: CreateAgentProfileDto, agentAccountId: string): Promise<AgentProfile> {
@@ -30,7 +33,8 @@ export class AgentProfileService {
         }
       }
       // Prevent duplicate agent profiles by agentId
-      const existing = await this.agentProfileModel.findOne({ agentId: createAgentProfileDto.agentId });
+      const existing = await this.agentProfileModel.findOne({ agentAccountId:agentAccountId });
+      console.log('Checking for existing agent profile:', existing);
       if (existing) {
         throw new BadRequestException('Agent profile with this agentId already exists.');
       }
@@ -47,7 +51,24 @@ export class AgentProfileService {
         outboundTopicId: outboundTopic.topicId,
         communicationTopicId: communicationTopic.topicId,
       });
-      return created.save();
+      const savedProfile = await created.save();
+      // Remove _id and __v fields before writing to topic
+      const profileToWrite = { ...savedProfile.toObject() };
+      delete profileToWrite._id;
+      delete profileToWrite.__v;
+      // Extract topic ID from agentDid (after last underscore)
+      const topicId = agentDid.split('_').pop();
+      if (topicId) {
+        // Fetch private key for agentDid
+        const privateKeyStr = await this.didKeyService.getPrivateKeyByDid(agentDid);
+        if (privateKeyStr) {
+          const privateKey = PrivateKey.fromString(privateKeyStr);
+          await this.hcsService.writeMessageToTopic(topicId, JSON.stringify(profileToWrite), privateKey);
+        } else {
+          await this.hcsService.writeMessageToTopic(topicId, JSON.stringify(profileToWrite));
+        }
+      }
+      return savedProfile;
     } catch (error) {
       if (error instanceof BadRequestException) throw error;
       throw new BadRequestException(error.message);

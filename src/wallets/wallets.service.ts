@@ -196,7 +196,7 @@ export class WalletsService implements OnModuleInit {
                     .setKey(publicKey)
                     .setInitialBalance(0)
                     .setMaxAutomaticTokenAssociations(this.maxAutomaticTokenAssociations)
-                    .setReceiverSignatureRequired(true);
+                    .setReceiverSignatureRequired(false);
                 const client = this.hederaClient.getClient();
                 // Freeze and sign with generated key
                 const frozenTx = await transaction.freezeWith(client);

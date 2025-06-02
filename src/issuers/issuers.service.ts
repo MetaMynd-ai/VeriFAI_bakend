@@ -32,7 +32,7 @@ export class IssuersService implements OnModuleInit {
     ): Promise<Array<IDIssuer>> {
         return new Promise(async (resolve, reject) => { 
             try {
-                const issuers: Array<IDIssuer> = await this.issuerModel.find({ owner: '682bfc6864cec2bcfad2edda' }).exec();
+                const issuers: Array<IDIssuer> = await this.issuerModel.find({ issuer: 'metamynd' }).exec();
                 resolve(issuers);
             } catch(error) {
                 reject(error);

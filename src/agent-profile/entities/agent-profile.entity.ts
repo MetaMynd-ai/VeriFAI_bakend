@@ -5,6 +5,12 @@ import { AgentCapability } from './agent-capability.enum';
 
 @Schema({ timestamps: true })
 export class AgentProfile extends Document {
+  @ApiProperty({ description: 'Agent Hedera account ID' })
+  @Prop({ required: true })
+  agentAccountId: string;
+  @ApiProperty({ description: 'Agent name' })
+  @Prop({ required: true })
+  agentName: string;
   @ApiProperty({ description: 'Agent DID (unique identifier)' })
   @Prop({ required: true, unique: true })
   agentDid: string;
@@ -16,7 +22,9 @@ export class AgentProfile extends Document {
   @ApiProperty({ description: 'Agent description' })
   @Prop({ required: true })
   agentDescription: string;
-
+  @ApiProperty({ description: 'Purpose of the agent' })
+  @Prop({ required: true })
+  purpose: string;
   @ApiProperty({ description: 'Agent URL (endpoint)' })
   @Prop({ required: true })
   url: string;
@@ -45,13 +53,8 @@ export class AgentProfile extends Document {
   @Prop({ required: true })
   communicationTopicId: string;
 
-  @ApiProperty({ description: 'Agent Hedera account ID' })
-  @Prop({ required: true })
-  agentAccountId: string;
+  
 
-  @ApiProperty({ description: 'Agent ID (external identifier, e.g. UUID or short code)' })
-  @Prop({ required: true, unique: true })
-  agentId: string;
 }
 
 export const AgentProfileSchema = SchemaFactory.createForClass(AgentProfile);

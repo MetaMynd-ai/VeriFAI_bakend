@@ -23,7 +23,7 @@ export class HcsService {
     return { topicId: receipt.topicId.toString() };
   }
   
-  async writeMessageToTopic(topicId: string, message: string): Promise<{ status: string, topicId: string,topicSequenceNumber?: string  }> {
+  async writeMessageToTopic(topicId: string, message: string, submitKey?: any): Promise<{ status: string, topicId: string, topicSequenceNumber?: string }> {
     let resolvedTopicId = topicId;
     if (topicId === 'register') {
       resolvedTopicId = this.configService.get<string>('DEV_AGENT_REGISTRY_TOPIC');
@@ -33,11 +33,15 @@ export class HcsService {
       this.configService.get<string>('DEV_NODE_ID'),
       this.configService.get<string>('DEV_NODE_PRIVATE_KEY')
     );
-    const tx = await new TopicMessageSubmitTransaction()
+    let tx = new TopicMessageSubmitTransaction()
       .setTopicId(resolvedTopicId)
-      .setMessage(message)
-      .execute(client);
-    const receipt = await tx.getReceipt(client);
-    return { status: receipt.status.toString(), topicId: resolvedTopicId , topicSequenceNumber: receipt.topicSequenceNumber.toString() };
+      .setMessage(message);
+    if (submitKey) {
+      tx = await tx.freezeWith(client);
+      tx = await tx.sign(submitKey);
+    }
+    const submitTx = await tx.execute(client);
+    const receipt = await submitTx.getReceipt(client);
+    return { status: receipt.status.toString(), topicId: resolvedTopicId, topicSequenceNumber: receipt.topicSequenceNumber?.toString() };
   }
 }
