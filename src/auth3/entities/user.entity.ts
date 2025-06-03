@@ -16,6 +16,7 @@ export class TwoFactorAuth {
 
 @Schema({ timestamps: true })
 export class User extends Document {
+  
   @ApiProperty() @Prop({ required: true, unique: true }) email: string;
   @ApiProperty() @Prop({ required: true, unique: true }) username: string;
   @ApiProperty() @Prop({ required: true }) password: string; // hashed

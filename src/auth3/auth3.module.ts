@@ -10,6 +10,6 @@ import { User, UserSchema } from './entities/user.entity';
   ],
   controllers: [Auth3Controller],
   providers: [Auth3Service],
-  exports: [Auth3Service],
+  exports: [Auth3Service,MongooseModule],
 })
 export class Auth3Module {}

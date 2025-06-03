@@ -13,12 +13,36 @@ import { ClusterService } from '@hsuite/cluster';
 import modules from '../config/settings/modules';
 import * as express from 'express';
 import { Logger } from '@nestjs/common';
+import { SESSION_REDIS } from './session/session.module';
+import * as passport from 'passport';
+import { User } from './auth3/entities/user.entity';
+import { getModelToken } from '@nestjs/mongoose';
+
 async function bootstrap() {
   // creating app instance...
   const app = await NestFactory.create(AppModule.register(), { 
     bufferLogs: true
   });
   app.useLogger(new Logger());
+  const redisSession = app.get(SESSION_REDIS);
+  app.use(cookieParser());
+  app.use(redisSession.sessionMiddleware);
+  app.use(passport.initialize());
+  app.use(passport.session());
+
+  // Global Passport session serialization
+  const userModel = app.get(getModelToken(User.name));
+  passport.serializeUser((user, done) => {
+    done(null, (user as any)._id?.toString());
+  });
+  passport.deserializeUser(async (id, done) => {
+    try {
+      const user = await userModel.findById(id);
+      done(null, user || null);
+    } catch (err) {
+      done(err);
+    }
+  });
 
   // using custom throttler guard, to avoid DDOS attacks on /api and /public routes...
   const throttlerGuard = app.get(CustomThrottlerGuard);
@@ -54,14 +78,16 @@ async function bootstrap() {
 
   // enabling cors...
   app.enableCors({credentials: true, origin: true, methods: 'GET,HEAD,PUT,PATCH,POST,DELETE'});
-  // making use of CSRF Protection...
-  app.use(cookieParser());
+ 
 
  
   // making use of Helmet...
   app.use(helmet({
     crossOriginResourcePolicy: false
   }));
+
+  // Setup Redis session middleware from SessionModule
+ 
 
   // Starts listening for shutdown hooks
   app.enableShutdownHooks();

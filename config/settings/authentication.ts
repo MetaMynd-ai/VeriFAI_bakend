@@ -31,7 +31,7 @@ export default (): {
                 //secure: process.env.NODE_ENV == 'mainnet' ? true : false
             },
             passport: IAuth.IConfiguration.IPassportStrategy.REDIS,
-            appName: 'IVC-Node',
+            appName: 'VF-Node',
             operator: configuration().environment == 'mainnet' ?
                 mainnet().node : testnet().node
         },

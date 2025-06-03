@@ -2,11 +2,13 @@ import { Controller, Get, Post, Body } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse, ApiBody } from '@nestjs/swagger';
 import { HcsService } from './hcs.service';
 
+
 @ApiTags('hcs')
 @Controller('hcs')
 export class HcsController {
   constructor(private readonly hcsService: HcsService) {}
-
+ 
+ 
   @Get('status')
   @ApiOperation({ summary: 'Get HCS module status' })
   @ApiOkResponse({ description: 'Returns HCS module status.' })

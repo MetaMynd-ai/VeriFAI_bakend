@@ -1,7 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
-import { APP_INTERCEPTOR } from '@nestjs/core';
+import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
 import { CacheInterceptor, CacheModule } from '@nestjs/cache-manager';
 import { ConsoleModule } from 'nestjs-console';
 import { join } from 'path';
@@ -27,6 +27,10 @@ import { HcsModule } from './hcs/hcs.module';
 import { HtsModule } from './hts/hts.module';
 import { AgentProfileModule } from './agent-profile/agent-profile.module';
 import { Auth3Module } from './auth3/auth3.module';
+import { SessionModule } from './session/session.module';
+import { AuthGuard } from '@nestjs/passport';
+import { Reflector } from '@nestjs/core';
+import { PassportModule } from '@nestjs/passport';
 
 
 import testnet from '../config/settings/testnet';
@@ -35,6 +39,7 @@ import modules from '../config/settings/modules';
 import authentication from '../config/settings/authentication';
 import configuration from '../config/configuration';
 import { LoggerModule } from './common/logger/logger.module';
+import { GlobalAuthGuard } from './common/guards/global-auth.guard';
 
 @Module({
   imports: [
@@ -81,13 +86,19 @@ import { LoggerModule } from './common/logger/logger.module';
     HcsModule,
     LoggerModule,
     AgentProfileModule,
-    Auth3Module
+    Auth3Module,
+    SessionModule,
+    PassportModule.register({ session: true }),
   ],
   controllers: [
     AppController
   ],
   providers: [
     AppService,
+    {
+      provide: APP_GUARD,
+      useClass: GlobalAuthGuard,
+    },
     {
       provide: APP_INTERCEPTOR,
       useClass: CacheInterceptor,

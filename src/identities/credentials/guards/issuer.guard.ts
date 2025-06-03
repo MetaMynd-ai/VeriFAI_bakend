@@ -1,30 +1,22 @@
 import { CanActivate, ExecutionContext, Injectable, UnauthorizedException } from '@nestjs/common'
 import { CredentialsService } from '../credentials.service';
+import { IS_PUBLIC_KEY } from '@hsuite/decorators';
+import { Reflector } from '@nestjs/core';
+import { User } from '../../../auth3/entities/user.entity';
+import { InjectModel } from '@nestjs/mongoose';
+import { Model } from 'mongoose';
 
 @Injectable()
 export class IssuerAuthGuard implements CanActivate {
   constructor(
-    private credentialsService: CredentialsService
+    private credentialsService: CredentialsService,
+    private reflector: Reflector,
+    @InjectModel(User.name) private userModel: Model<User>,
   ) {}
 
   async canActivate(
     context: ExecutionContext,
   ): Promise<boolean> {
-    const request = context.switchToHttp().getRequest();
-   
-
-    // if(!['admin', 'issuer','user'].includes(request.user.role)) {
-    //   throw new UnauthorizedException('Sorry, only admin or issuer can issue a VC.');
-    // }
-
-    // if(request.user.role === 'issuer') {
-    //   try {
-    //     await this.credentialsService.getIssuerForOwner(request.user._id);
-    //   } catch(error) {
-    //       throw new UnauthorizedException(error.message);
-    //   }
-    // }
-
-    return true;
+    return true
   }
 }

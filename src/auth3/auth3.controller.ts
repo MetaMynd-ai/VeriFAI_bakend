@@ -1,16 +1,24 @@
-import { Controller, Get, Req, BadRequestException, Post, Body, Res, Query } from '@nestjs/common';
+import { Controller, Get, Req, BadRequestException, Post, Body, Res, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse, ApiNotFoundResponse, ApiBadRequestResponse, ApiBody } from '@nestjs/swagger';
 import { Auth3Service } from './auth3.service';
 import { Response } from 'express';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { GlobalAuthGuard } from 'src/common/guards/global-auth.guard';
+import { Public } from '@hsuite/decorators';
 
 @ApiTags('auth3')
 @Controller('auth3')
 export class Auth3Controller {
   constructor(private readonly auth3Service: Auth3Service) {}
-
+@Get('debug-session')
+@Public()
+async debug(@Req() req) {
+  return { session: req.session, user: req.user , sessionID: req.sessionID, cookies: req.cookies, headers: req.headers };
+}
   @Get('profile')
+  @UseGuards(GlobalAuthGuard)
   @ApiOperation({
     summary: 'Get the profile of a user from the session.',
     description: 'This endpoint is only available if the user is authenticated. It will return the profile of the user from the session.'
@@ -22,13 +30,13 @@ export class Auth3Controller {
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
   async profile(@Req() request: any) {
-    try {
-      return await this.auth3Service.profile(request.user);
-    } catch (error) {
-      throw new BadRequestException(error.message);
+    console.log('Request user profile () contrl:', request);
+    if (!request.user) {
+      return { message: 'Not logged in' };
     }
+    return request.user;
   }
-
+ 
   @Post('register')
   @ApiOperation({ summary: 'Register a new user with email and password.' })
   @ApiBody({ type: RegisterDto })
@@ -47,6 +55,7 @@ export class Auth3Controller {
   }
 
   @Post('login')
+  @Public()
   @ApiOperation({ summary: 'Login with email and password.' })
   @ApiBody({ type: LoginDto })
   @ApiOkResponse({ status: 200, description: 'Returns a user profile.' })
