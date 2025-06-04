@@ -38,6 +38,7 @@ async debug(@Req() req) {
   }
  
   @Post('register')
+  @Public()
   @ApiOperation({ summary: 'Register a new user with email and password.' })
   @ApiBody({ type: RegisterDto })
   @ApiOkResponse({ status: 200, description: 'Returns a user profile.' })

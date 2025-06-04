@@ -1,4 +1,4 @@
-import { DynamicModule, Module } from '@nestjs/common';
+import { DynamicModule, Module, forwardRef } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { APP_INTERCEPTOR, APP_GUARD } from '@nestjs/core';
@@ -19,7 +19,7 @@ import { SecurityThrottlerModule } from '@hsuite/throttler';
 import { IHedera } from '@hsuite/types';
 import { LedgerId } from '@hashgraph/sdk';
 import { ClientModule } from '@hsuite/client';
-import { IpfsResolverModule, IpfsResolverService } from '@hsuite/ipfs-resolver';
+import { IpfsResolverModule } from '@hsuite/ipfs-resolver';
 import { IdentitiesModule } from './identities/identities.module';
 import { IssuersModule } from './issuers/issuers.module';
 import { BalanceModule } from './balance/balance.module';
@@ -28,9 +28,8 @@ import { HtsModule } from './hts/hts.module';
 import { AgentProfileModule } from './agent-profile/agent-profile.module';
 import { Auth3Module } from './auth3/auth3.module';
 import { SessionModule } from './session/session.module';
-import { AuthGuard } from '@nestjs/passport';
-import { Reflector } from '@nestjs/core';
 import { PassportModule } from '@nestjs/passport';
+import { SubscribeModule } from './hcs/subscribe/subscribe.module';
 
 
 import testnet from '../config/settings/testnet';
@@ -141,7 +140,8 @@ export class AppModule {
             [
               ApiKeyModule
             ] : []
-        )
+        ),
+        forwardRef(() => SubscribeModule),
       ],
       providers: []
     };

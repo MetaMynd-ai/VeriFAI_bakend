@@ -17,11 +17,12 @@ import { SESSION_REDIS } from './session/session.module';
 import * as passport from 'passport';
 import { User } from './auth3/entities/user.entity';
 import { getModelToken } from '@nestjs/mongoose';
+import { SubscribeService } from './hcs/subscribe/subscribe.service';
 
 async function bootstrap() {
   // creating app instance...
-  const app = await NestFactory.create(AppModule.register(), { 
-    bufferLogs: true
+  const app = await NestFactory.create(AppModule.register(), {
+    bufferLogs: true,
   });
   app.useLogger(new Logger());
   const redisSession = app.get(SESSION_REDIS);
@@ -47,21 +48,26 @@ async function bootstrap() {
   // using custom throttler guard, to avoid DDOS attacks on /api and /public routes...
   const throttlerGuard = app.get(CustomThrottlerGuard);
   app.use(async function (req, res, next) {
-   // console.log("Req",req)
+    // console.log("Req",req)
     //console.log("res",res)
     let executionContext = new ExecutionContextHost(
-      [req, res], app.get(AppService), app.get(AppService)
+      [req, res],
+      app.get(AppService),
+      app.get(AppService),
     );
 
-    if(req.originalUrl.includes('/api') || req.originalUrl.includes('/public')) {
+    if (
+      req.originalUrl.includes('/api') ||
+      req.originalUrl.includes('/public')
+    ) {
       try {
         await throttlerGuard.handleRequest(
-          executionContext, 
+          executionContext,
           modules().modules.ThrottlerModule.config.limit,
-          modules().modules.ThrottlerModule.config.ttl
+          modules().modules.ThrottlerModule.config.ttl,
         );
         next();
-      } catch(error) {
+      } catch (error) {
         res.status(429).json({
           statusCode: 429,
           message: 'Too Many Requests',
@@ -70,24 +76,27 @@ async function bootstrap() {
     } else {
       next();
     }
- });
+  });
 
   // enabling body parser...
   app.use(express.json());
   app.use(bodyParser.urlencoded({ extended: true }));
 
   // enabling cors...
-  app.enableCors({credentials: true, origin: true, methods: 'GET,HEAD,PUT,PATCH,POST,DELETE'});
- 
+  app.enableCors({
+    credentials: true,
+    origin: true,
+    methods: 'GET,HEAD,PUT,PATCH,POST,DELETE',
+  });
 
- 
   // making use of Helmet...
-  app.use(helmet({
-    crossOriginResourcePolicy: false
-  }));
+  app.use(
+    helmet({
+      crossOriginResourcePolicy: false,
+    }),
+  );
 
   // Setup Redis session middleware from SessionModule
- 
 
   // Starts listening for shutdown hooks
   app.enableShutdownHooks();
@@ -96,37 +105,45 @@ async function bootstrap() {
   app.use(compression());
 
   const config = new DocumentBuilder()
-  .setTitle('VeriFay - Restful API')
-  .setDescription(`A comprehensive set of tools to communicate with the Verifai Smart Node.`)
-  .setVersion('1.0')
-  .addBearerAuth({
-    type: 'http',
-    name: 'Authorization',
-    scheme: 'Bearer',
-    bearerFormat: 'Api Key',
-    in: 'Header',
-    description: `The API Key is used to authenticate requests to the Verifai Smart Node.`,
-  }, 'Bearer')
-  .addSecurityRequirements('Bearer')
-  .build();
+    .setTitle('VeriFay - Restful API')
+    .setDescription(
+      `A comprehensive set of tools to communicate with the Verifai Smart Node.`,
+    )
+    .setVersion('1.0')
+    .addBearerAuth(
+      {
+        type: 'http',
+        name: 'Authorization',
+        scheme: 'Bearer',
+        bearerFormat: 'Api Key',
+        in: 'Header',
+        description: `The API Key is used to authenticate requests to the Verifai Smart Node.`,
+      },
+      'Bearer',
+    )
+    .addSecurityRequirements('Bearer')
+    .build();
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
- 
+
   // start listening on the port...
   await app.listen(process.env.PORT || 3000);
 
   // returning app instance...
+  // const subscribeService = app.get(SubscribeService);
+  // subscribeService.subscribeToTopic('0.0.6108870', (message) => {
+    
+  //   console.log('Received Hedera topic message:', message);
+  // });
+
   return app;
 }
 
 // clusterizing the app...
-if(modules().modules.ClusterModule.enabled) {
-  ClusterService.clusterize(
-    modules().modules.ClusterModule.workers, 
-    bootstrap
-  );
-} 
+if (modules().modules.ClusterModule.enabled) {
+  ClusterService.clusterize(modules().modules.ClusterModule.workers, bootstrap);
+}
 // or simply bootstrapping the app...
 else {
   bootstrap();
