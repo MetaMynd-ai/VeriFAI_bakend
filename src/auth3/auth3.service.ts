@@ -61,9 +61,9 @@ export class Auth3Service {
       user: userResult as User,
     };
   }
-
-  async refreshTokens(userId: string, refreshTokenFromCookie: string): Promise<{ accessToken: string; newRefreshToken: string }> {
-    const user = await this.userModel.findById(userId).select('+currentHashedRefreshToken');
+ 
+  async refreshTokens(id: string, refreshTokenFromCookie: string): Promise<{ accessToken: string; newRefreshToken: string }> {
+    const user = await this.userModel.findById(id).select('+currentHashedRefreshToken');
     if (!user || !user.currentHashedRefreshToken) {
       throw new ForbiddenException('Access Denied: No refresh token stored.');
     }

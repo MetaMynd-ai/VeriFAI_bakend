@@ -3,7 +3,6 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import * as session from 'express-session';
 import RedisStore from 'connect-redis';
 import { createClient } from 'redis';
-import { JwtModule } from '@nestjs/jwt';
 
 export const SESSION_REDIS = 'SESSION_REDIS';
 
@@ -11,11 +10,6 @@ export const SESSION_REDIS = 'SESSION_REDIS';
 @Module({
   imports: [
     ConfigModule,
-    JwtModule.registerAsync({
-      imports: [ConfigModule],
-      useFactory: (configService: ConfigService) => configService.get('auth.commonOptions.jwt'),
-      inject: [ConfigService],
-    }),
   ],
   providers: [
     {
@@ -43,6 +37,6 @@ export const SESSION_REDIS = 'SESSION_REDIS';
       inject: [ConfigService]
     }
   ],
-  exports: [SESSION_REDIS, JwtModule]
+  exports: [SESSION_REDIS]
 })
 export class SessionModule {}

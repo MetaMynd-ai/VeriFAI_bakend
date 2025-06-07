@@ -6,7 +6,8 @@ import {
   Param, 
   Post, 
   Put, 
-  Req 
+  Req, 
+  UnauthorizedException
 } from '@nestjs/common';
 import { 
   ApiBadRequestResponse, 
@@ -66,8 +67,14 @@ export class IssuersController {
     @Body() issuer: IssuerPayload
   ): Promise<IDIssuer> {
     try {
+      if (request.user.role !== 'admin') {
+        throw new UnauthorizedException('You are not authorized to create an issuer.');
+      }
       return await this.issuersService.createIssuer(request.user._id, issuer);
     } catch(error) {
+      if (error instanceof UnauthorizedException) {
+      throw new UnauthorizedException(error.message);
+      }
       throw new BadRequestException(error.message);
     }
   }
