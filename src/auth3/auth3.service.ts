@@ -1,31 +1,104 @@
-import { Injectable } from '@nestjs/common';
+import { Injectable, UnauthorizedException, ForbiddenException } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model } from 'mongoose';
 import { User } from './entities/user.entity';
 import * as bcrypt from 'bcrypt';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
-import { rejects } from 'assert';
+import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config'; // Import ConfigService
 
 @Injectable()
 export class Auth3Service {
-  constructor(@InjectModel(User.name) private userModel: Model<User>) {}
+  constructor(
+    @InjectModel(User.name) private userModel: Model<User>,
+    private jwtService: JwtService,
+    private configService: ConfigService, // Inject ConfigService
+  ) {}
+
+  private async getTokens(id: string, username: string, role: string) {
+    const accessTokenPayload = { sub: id, username, role };
+    const refreshTokenPayload = { sub: id, username }; // Refresh token might have a simpler payload
+
+    const [accessToken, refreshToken] = await Promise.all([
+      this.jwtService.signAsync(accessTokenPayload, {
+        secret: this.configService.get<string>('auth.commonOptions.jwt.secret'),
+        expiresIn: this.configService.get<string>('auth.commonOptions.jwt.signOptions.expiresIn'),
+      }),
+      this.jwtService.signAsync(refreshTokenPayload, {
+        secret: this.configService.get<string>('auth.commonOptions.jwtRefresh.secret'),
+        expiresIn: this.configService.get<string>('auth.commonOptions.jwtRefresh.signOptions.expiresIn'),
+      }),
+    ]);
+
+    return {
+      accessToken,
+      refreshToken,
+    };
+  }
+
+  private async updateRefreshToken( id: string, refreshToken: string) {
+    const hashedRefreshToken = await bcrypt.hash(refreshToken, 10);
+    await this.userModel.updateOne({ _id: id }, {
+      currentHashedRefreshToken: hashedRefreshToken,
+    });
+  }
+
+  async login(userFromValidation: User): Promise<{ accessToken: string; refreshToken: string; user: User }> {
+    if (!userFromValidation) {
+        throw new UnauthorizedException('User not validated for login.');
+    }
+    const tokens = await this.getTokens(userFromValidation._id.toString(), userFromValidation.username, userFromValidation.role);
+    await this.updateRefreshToken(userFromValidation._id.toString(), tokens.refreshToken);
+
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password, currentHashedRefreshToken, ...userResult } = userFromValidation.toObject ? userFromValidation.toObject() : userFromValidation;
+
+
+    return {
+      ...tokens,
+      user: userResult as User,
+    };
+  }
+
+  async refreshTokens(userId: string, refreshTokenFromCookie: string): Promise<{ accessToken: string; newRefreshToken: string }> {
+    const user = await this.userModel.findById(userId).select('+currentHashedRefreshToken');
+    if (!user || !user.currentHashedRefreshToken) {
+      throw new ForbiddenException('Access Denied: No refresh token stored.');
+    }
+
+    const isRefreshTokenMatching = await bcrypt.compare(
+      refreshTokenFromCookie,
+      user.currentHashedRefreshToken,
+    );
+
+    if (!isRefreshTokenMatching) {
+      throw new ForbiddenException('Access Denied: Refresh token mismatch.');
+    }
+
+    const newTokens = await this.getTokens(user._id.toString(), user.username, user.role);
+    await this.updateRefreshToken(user._id.toString(), newTokens.refreshToken);
+
+    return { accessToken: newTokens.accessToken, newRefreshToken: newTokens.refreshToken };
+  }
+  
+  async logout(id: string): Promise<{ success: boolean; message: string }> {
+    await this.userModel.updateOne({ _id: id }, { currentHashedRefreshToken: null });
+    return { success: true, message: 'Logged out successfully. Refresh token invalidated.' };
+  }
 
   async profile(user: any) {
-    console.log('Fetching user profile from session:', user);
-    // Return the user profile from the session
+    console.log('Fetching user profile from JWT:', user);
     return user;
   }
 
   async register(credentials: RegisterDto): Promise<any> {
-    // Check for existing user by email or username
     const existing = await this.userModel.findOne({
       $or: [{ email: credentials.email }, { username: credentials.username }],
     });
     if (existing) {
       throw new Error('User with this email or username already exists.');
     }
-    // Hash password
     const hashedPassword = await bcrypt.hash(credentials.password, 10);
     const now = Date.now().toString();
     const user = new this.userModel({
@@ -45,37 +118,41 @@ export class Auth3Service {
       updated_at: now,
     });
     const saved = await user.save();
-    // Return a safe user object (omit password)
     const { password, ...safeUser } = saved.toObject();
     return safeUser;
   }
 
-  async login(credentials: LoginDto, req: any, res: any): Promise<any> {
-    try {
-      const user = await this.userModel.findOne({
-        $or: [{ email: credentials.email }, { username: credentials.username }],
-      });
-      if (!user) throw new Error('Invalid email/username or password');
-      const valid = await bcrypt.compare(credentials.password, user.password);
-      if (!valid) throw new Error('Invalid email/username or password');
-      req.login(user, (err: any) => {
-        if (err) {
-          return res
-            .status(500)
-            .send({ success: false, message: 'Login failed' });
-        }
-        const { password, ...safeUser } = user.toObject();
-        res.send({ success: true, user: safeUser });
-      });
-    } catch (error) {
-      return res
-        .status(401)
-        .json({ success: false, message: error.message || 'Unauthorized' });
+  async validateUser(credentials: LoginDto): Promise<any> {
+    const { email_or_username, password: inputPassword } = credentials;
+    let userQuery: any = {};
+
+    if (!email_or_username || !inputPassword) {
+        return null; // Should be caught by DTO validation or strategy
     }
+
+    // Simple check to differentiate email from username
+    // You might want a more robust regex for email validation if needed
+    const isEmail = email_or_username.includes('@'); 
+
+    if (isEmail) {
+      userQuery.email = email_or_username;
+    } else {
+      userQuery.username = email_or_username;
+    }
+
+    const user = await this.userModel
+      .findOne(userQuery)
+      .select('+password');
+
+    if (user && (await bcrypt.compare(inputPassword, user.password))) {
+      // eslint-disable-next-line @typescript-eslint/no-unused-vars
+      const { password, ...result } = user.toObject ? user.toObject() : user;
+      return result;
+    }
+    return null;
   }
 
   async passwordRecoveryRequest(email: string): Promise<boolean> {
-    // Implement password recovery request logic here
     return true;
   }
 
@@ -83,30 +160,14 @@ export class Auth3Service {
     token: string,
     newPassword: string,
   ): Promise<boolean> {
-    // Implement password reset logic here
     return true;
   }
 
   async emailConfirmation(token: string): Promise<boolean> {
-    // Implement email confirmation logic here
     return true;
   }
 
   async sendConfirmationEmail(userId: string, email: string): Promise<boolean> {
-    // Implement send confirmation email logic here
     return true;
-  }
-
-  async logout(req: any, res: any): Promise<boolean> {
-    if (req.session) {
-      console.log('Logging out user1:', req.session.user);
-      req.session.destroy(() => {
-        res.clearCookie('connect.sid'); // or your session cookie name
-        res.send({ logout: true, message: 'Logged out' });
-      });
-      return true;
-    }
-    res.send({ logout: false, message: 'No session found' });
-    return false;
   }
 }

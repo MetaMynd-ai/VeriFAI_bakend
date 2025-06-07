@@ -18,19 +18,24 @@ export default (): {
                 password: process.env.REDIS_PASSWORD
             },
             jwt: {
-                secret: process.env.SESSION_SECRET,
+                secret: process.env.SESSION_SECRET, // This is for Access Tokens
                 signOptions: {
-                    expiresIn: '364d'
+                    expiresIn: '364d' // Example: Access token expires in 15 minutes
                 },
             },
-            cookieOptions: {
-                sameSite: false,
-                httpOnly: true,
-                maxAge: 60000 * 60 * 24 * 364,
-                secure: false,  
-                //secure: process.env.NODE_ENV == 'mainnet' ? true : false
+            jwtRefresh: { // New configuration for Refresh Tokens
+                secret: process.env.JWT_REFRESH_SECRET, // Separate secret for refresh tokens
+                signOptions: {
+                    expiresIn: '7d' // Example: Refresh token expires in 7 days
+                },
             },
-            passport: IAuth.IConfiguration.IPassportStrategy.REDIS,
+             cookieOptions: {
+                sameSite: false, // Use the string 'none'
+                httpOnly: true,   // This is good for security
+                maxAge: 60000 * 60 * 24 * 364, // Or your desired session length
+                secure: true,     // Must be true when sameSite is 'none'
+            },
+            passport: IAuth.IConfiguration.IPassportStrategy.JWT, // Changed from REDIS to JWT
             appName: 'VF-Node',
             operator: configuration().environment == 'mainnet' ?
                 mainnet().node : testnet().node

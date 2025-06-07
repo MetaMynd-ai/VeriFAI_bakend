@@ -1,6 +1,5 @@
 import { NestFactory } from '@nestjs/core';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
-import * as csurf from 'csurf';
 import helmet from 'helmet';
 import * as bodyParser from 'body-parser';
 import * as cookieParser from 'cookie-parser';
@@ -13,11 +12,7 @@ import { ClusterService } from '@hsuite/cluster';
 import modules from '../config/settings/modules';
 import * as express from 'express';
 import { Logger } from '@nestjs/common';
-import { SESSION_REDIS } from './session/session.module';
 import * as passport from 'passport';
-import { User } from './auth3/entities/user.entity';
-import { getModelToken } from '@nestjs/mongoose';
-import { SubscribeService } from './hcs/subscribe/subscribe.service';
 
 async function bootstrap() {
   // creating app instance...
@@ -25,31 +20,14 @@ async function bootstrap() {
     bufferLogs: true,
   });
   app.useLogger(new Logger());
-  const redisSession = app.get(SESSION_REDIS);
   app.use(cookieParser());
-  app.use(redisSession.sessionMiddleware);
-  app.use(passport.initialize());
-  app.use(passport.session());
 
-  // Global Passport session serialization
-  const userModel = app.get(getModelToken(User.name));
-  passport.serializeUser((user, done) => {
-    done(null, (user as any)._id?.toString());
-  });
-  passport.deserializeUser(async (id, done) => {
-    try {
-      const user = await userModel.findById(id);
-      done(null, user || null);
-    } catch (err) {
-      done(err);
-    }
-  });
+  // Initialize Passport
+  app.use(passport.initialize());
 
   // using custom throttler guard, to avoid DDOS attacks on /api and /public routes...
   const throttlerGuard = app.get(CustomThrottlerGuard);
   app.use(async function (req, res, next) {
-    // console.log("Req",req)
-    //console.log("res",res)
     let executionContext = new ExecutionContextHost(
       [req, res],
       app.get(AppService),
@@ -96,8 +74,6 @@ async function bootstrap() {
     }),
   );
 
-  // Setup Redis session middleware from SessionModule
-
   // Starts listening for shutdown hooks
   app.enableShutdownHooks();
 
@@ -131,12 +107,6 @@ async function bootstrap() {
   await app.listen(process.env.PORT || 3000);
 
   // returning app instance...
-  // const subscribeService = app.get(SubscribeService);
-  // subscribeService.subscribeToTopic('0.0.6108870', (message) => {
-    
-  //   console.log('Received Hedera topic message:', message);
-  // });
-
   return app;
 }
 

@@ -32,6 +32,7 @@ export class User extends Document {
   twoFactorAuth: TwoFactorAuth;
   @ApiProperty() @Prop() created_at: string;
   @ApiProperty() @Prop() updated_at: string;
+  @ApiProperty() @Prop({ type: String, required: false, select: false }) currentHashedRefreshToken?: string;
 }
 
 export const UserSchema = SchemaFactory.createForClass(User);

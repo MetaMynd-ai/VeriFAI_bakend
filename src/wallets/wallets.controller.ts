@@ -57,6 +57,12 @@ export class WalletsController {
     @Param('userId') userId: string
   ): Promise<I_IVC.IWallet.IHistory> {
     try {
+       if (request.user.username!=userId && request.user.role !== 'admin') {
+     
+      throw new BadRequestException(`Unauthorized: You (${request.user.username}) are not allowed to access the wallet of user: ${userId}`);
+
+    }
+    
       return await this.walletsService.getWallet(userId);
     } catch(error) {
       throw new BadRequestException(error.message);
@@ -116,9 +122,16 @@ export class WalletsController {
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
   async createWallet(
+    @Req() request,
     @Body() body: { owner: string; type?: 'user' | 'agent'; },
   ): Promise<{ wallet: Wallet, did: any }> {
     const { owner, type = 'user' } = body;
+    if (request.user.username!=owner && request.user.role !== 'admin') {
+      console.log('Unauthorized access attempt by:', request.user.username, 'for owner:', owner);
+      throw new BadRequestException(`Unauthorized: You (${request.user.username}) are not allowed to create a wallet for owner: ${owner}`);
+
+    }
+    
     if (!owner || !type) {
       throw new BadRequestException('Missing required fields: owner, type');
     }
@@ -131,6 +144,7 @@ export class WalletsController {
         throw new BadRequestException('A user wallet already exists for this owner.');
       }
     }
+    
     // For agent, allow multiple wallets per owner
     return this.walletsService.createWallet({ userId: owner, type });
   }

@@ -8,7 +8,7 @@ import { User } from 'src/auth3/entities/user.entity';
 
 
 @Injectable()
-export class GlobalAuthGuard extends AuthGuard('session') implements CanActivate {
+export class GlobalAuthGuard extends AuthGuard('jwt') implements CanActivate {
   constructor(private reflector: Reflector,
     @InjectModel(User.name) private userModel: Model<User>,) {
     console.log('GlobalAuthGuard: Constructed');
@@ -16,44 +16,55 @@ export class GlobalAuthGuard extends AuthGuard('session') implements CanActivate
   }
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
-    console.log('GlobalAuthGuard: canActivate called');
+   
     const request = context.switchToHttp().getRequest();
     // check if the request is public
     const isPublic = this.reflector.getAllAndOverride<boolean>(IS_PUBLIC_KEY, [
       context.getHandler(),
       context.getClass(),
     ]);
-    console.log('GlobalAuthGuard canActivate called for ', context.getHandler().name, isPublic);
+   
+    console.log('GlobalAuthGuard: Route  ', context.getHandler().name );
+   
     if (isPublic) {
       console.log('GlobalAuthGuard canActivate called for public route');
       return true;
     }
-    if (!request.session || !request.session.passport || !request.session.passport.user) {
-      throw new UnauthorizedException('User not authenticated');
-    } else {
-      const user = await this.userModel.findOne({
 
-        _id: request.session.passport.user
+    // Perform JWT authentication.
+    // super.canActivate(context) will call the JWT strategy.
+    // If authentication fails (e.g., no token, invalid token), it will throw an UnauthorizedException.
+    // If successful, request.user will be populated with the payload returned by the JWT strategy's validate() method.
+    await super.canActivate(context);
 
-
-      });
-      if (!user) {
-        throw new UnauthorizedException('User not found');
-      }
-      // Remove password before attaching user to request
-      const { password, ...safeUser } = user.toObject ? user.toObject() : user;
-      request.user = safeUser; // Attach the user to the request object
-      // get the user from mobgodb using user entity 
-
-    }
-    if (!request.session.passport.user) {
-      throw new UnauthorizedException('User ID not found in session');
+    // If super.canActivate(context) did not throw, authentication was successful.
+    // request.user now contains the JWT payload.
+    // Ensure your JWT strategy's validate function returns an object containing the user ID.
+    // Common property names for user ID in JWT payload are 'sub', 'id', or 'userId'.
+    // Adjust 'request.user.userId' below to match the property name in your JWT payload.
+    if (!request.user || !request.user.userId) { 
+      // For example, if your JWT payload uses 'sub' for user ID, change to: !request.user.sub
+      throw new UnauthorizedException('User identifier not found in JWT payload. Ensure your JWT strategy returns it.');
     }
 
+    const userFromDb = await this.userModel.findOne({
+      // Adjust 'request.user.userId' to match the property name for user ID in your JWT payload.
+      // e.g., if JWT payload has { sub: 'actual_user_id' }, use request.user.sub
+      _id: request.user.userId 
+    });
 
+    if (!userFromDb) {
+      throw new UnauthorizedException('User not found in database.');
+    }
+    
+    // Remove password before attaching user to request
+    const { password, ...safeUser } = userFromDb.toObject ? userFromDb.toObject() : userFromDb;
+    request.user = safeUser; // Replace JWT payload in request.user with the full, fresh user object from DB
 
-    console.log('IssuerAuthGuard canActivate called ' + request.session.passport.user);
+    // Updated log message
+    console.log('GlobalAuthGuard canActivate successful for user ID: ' + request.user._id);
 
+    // Existing role checks can proceed using request.user.role, etc.
     // if(!['admin', 'issuer','user'].includes(request.user.role)) {
     //   throw new UnauthorizedException('Sorry, only admin or issuer can issue a VC.');
     // }
