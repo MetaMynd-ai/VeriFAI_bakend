@@ -11,7 +11,7 @@ import { AppModule } from './app.module';
 import { ClusterService } from '@hsuite/cluster';
 import modules from '../config/settings/modules';
 import * as express from 'express';
-import { Logger } from '@nestjs/common';
+import { Logger, ForbiddenException } from '@nestjs/common'; // Added ForbiddenException for consistency if canActivate throws
 import * as passport from 'passport';
 
 async function bootstrap() {
@@ -30,8 +30,8 @@ async function bootstrap() {
   app.use(async function (req, res, next) {
     let executionContext = new ExecutionContextHost(
       [req, res],
-      app.get(AppService),
-      app.get(AppService),
+      app.get(AppService) as any, 
+      app.get(AppService) as any, 
     );
 
     if (
@@ -39,17 +39,30 @@ async function bootstrap() {
       req.originalUrl.includes('/public')
     ) {
       try {
-        await throttlerGuard.handleRequest(
-          executionContext,
-          modules().modules.ThrottlerModule.config.limit,
-          modules().modules.ThrottlerModule.config.ttl,
-        );
-        next();
+        const canProceed = await throttlerGuard.canActivate(executionContext);
+        if (canProceed) {
+          next();
+        } else {
+          res.status(429).json({
+            statusCode: 429,
+            message: 'Too Many Requests',
+          });
+        }
       } catch (error) {
-        res.status(429).json({
-          statusCode: 429,
-          message: 'Too Many Requests',
-        });
+        // If canActivate throws (e.g., ThrottlerException), handle it.
+        // This assumes CustomThrottlerGuard might throw an error that isn't automatically a 429.
+        // Or, if it throws a specific NestJS exception, it might be handled by global exception filters.
+        if (error instanceof ForbiddenException || (error && error.status === 403)) { // Example check
+             res.status(403).json({ // Or 429 if it's specifically a throttle error
+                statusCode: error.status,
+                message: error.message || 'Forbidden',
+             });
+        } else {
+             res.status(429).json({
+                statusCode: 429,
+                message: error.message || 'Too Many Requests',
+             });
+        }
       }
     } else {
       next();
@@ -81,7 +94,7 @@ async function bootstrap() {
   app.use(compression());
 
   const config = new DocumentBuilder()
-    .setTitle('VeriFay - Restful API')
+    .setTitle('VeriFai - Restful API')
     .setDescription(
       `A comprehensive set of tools to communicate with the Verifai Smart Node.`,
     )

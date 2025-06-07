@@ -16,9 +16,9 @@ export class Auth3Service {
     private configService: ConfigService, // Inject ConfigService
   ) {}
 
-  private async getTokens(id: string, username: string, role: string) {
-    const accessTokenPayload = { sub: id, username, role };
-    const refreshTokenPayload = { sub: id, username }; // Refresh token might have a simpler payload
+  private async getTokens(id: string, username: string, role: string) { // Changed second param name to 'username' for clarity
+    const accessTokenPayload = { sub: id, username, role }; // Use 'username' in payload
+    const refreshTokenPayload = { sub: id, username }; // Use 'username' in refresh token payload
 
     const [accessToken, refreshToken] = await Promise.all([
       this.jwtService.signAsync(accessTokenPayload, {
@@ -48,6 +48,7 @@ export class Auth3Service {
     if (!userFromValidation) {
         throw new UnauthorizedException('User not validated for login.');
     }
+    // userFromValidation is the validated user object from DB, it will have 'username' and 'role'
     const tokens = await this.getTokens(userFromValidation._id.toString(), userFromValidation.username, userFromValidation.role);
     await this.updateRefreshToken(userFromValidation._id.toString(), tokens.refreshToken);
 
@@ -76,6 +77,7 @@ export class Auth3Service {
       throw new ForbiddenException('Access Denied: Refresh token mismatch.');
     }
 
+    // user is the validated user object from DB, it will have 'username' and 'role'
     const newTokens = await this.getTokens(user._id.toString(), user.username, user.role);
     await this.updateRefreshToken(user._id.toString(), newTokens.refreshToken);
 
@@ -147,7 +149,7 @@ export class Auth3Service {
     if (user && (await bcrypt.compare(inputPassword, user.password))) {
       // eslint-disable-next-line @typescript-eslint/no-unused-vars
       const { password, ...result } = user.toObject ? user.toObject() : user;
-      return result;
+      return result; // This result object contains both user.username and user.email
     }
     return null;
   }
