@@ -26,7 +26,7 @@ import { BalanceModule } from './balance/balance.module';
 import { HcsModule } from './hcs/hcs.module';
 import { HtsModule } from './hts/hts.module';
 import { AgentProfileModule } from './agent-profile/agent-profile.module';
-import { Auth3Module } from './auth3/auth3.module';
+import { AuthModule } from './auth/auth.module'; // Changed from Auth3Module
 import { PassportModule } from '@nestjs/passport';
 import { SubscribeModule } from './hcs/subscribe/subscribe.module';
 import { WebSocketModule } from './websocket/websocket.module';
@@ -85,7 +85,7 @@ import { GlobalAuthGuard } from './common/guards/global-auth.guard';
     HcsModule,
     LoggerModule,
     AgentProfileModule,
-    Auth3Module,
+    AuthModule, // Changed from Auth3Module
     WebSocketModule,
     PassportModule.register({ defaultStrategy: 'jwt', session: false }), // Updated PassportModule registration
   ],

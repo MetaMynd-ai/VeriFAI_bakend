@@ -6,7 +6,7 @@ import { ConfigService } from '@nestjs/config';
 // Define an interface for the object returned by validate,
 // which will be attached to request.user by Passport after JWT validation.
 export interface AuthenticatedUserPayload {
-  userId: string; // This will be mapped from JWT's payload.sub
+  _id: string; // Changed from userId to _id (mapped from JWT's payload.sub)
   username: string;
   role: string;
   // Add other properties from the JWT payload if they are included and useful
@@ -51,7 +51,7 @@ export class JwtStrategy extends PassportStrategy(Strategy) { // Default strateg
     // Map JWT payload fields to our AuthenticatedUserPayload interface.
     // 'payload.sub' typically holds the user's unique identifier.
     return {
-      userId: payload.sub,
+      _id: payload.sub, // Changed from userId to _id
       username: payload.username,
       role: payload.role,
     };

@@ -1,6 +1,6 @@
 import { Controller, Get, Req, BadRequestException, Post, Body, Res, Query, UseGuards, Request, HttpCode, HttpStatus } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiOkResponse, ApiNotFoundResponse, ApiBadRequestResponse, ApiBody } from '@nestjs/swagger';
-import { Auth3Service } from './auth3.service';
+import { AuthService } from './auth.service'; // Changed from Auth3Service to AuthService
 import { Response } from 'express';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -11,17 +11,16 @@ import { User } from './entities/user.entity'; // Assuming User entity is used f
 import { AuthenticatedUserPayload } from './strategies/jwt.strategy'; // For typing req.user on protected routes
 import { RefreshTokenPayload } from './strategies/jwt-refresh.strategy'; // For typing req.user on refresh route
 
-@ApiTags('auth3')
-@Controller('auth3')
-export class Auth3Controller {
-  constructor(private readonly auth3Service: Auth3Service) {}
+@ApiTags('auth') // Changed from 'auth3'
+@Controller('auth') // Changed from 'auth3'
+export class AuthController { // Changed from Auth3Controller
+  constructor(private readonly authService: AuthService) {} // Changed from auth3Service: Auth3Service
 @Get('debug-session')
 @Public()
 async debug(@Req() req) {
   return { session: req.session, user: req.user , sessionID: req.sessionID, cookies: req.cookies, headers: req.headers };
 }
   @Get('profile')
-  @UseGuards(GlobalAuthGuard)
   @ApiOperation({
     summary: 'Get the profile of a user from the session.',
     description: 'This endpoint is only available if the user is authenticated. It will return the profile of the user from the session.'
@@ -33,7 +32,7 @@ async debug(@Req() req) {
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
   async profile(@Req() request: any) {
-    console.log('Request user profile () contrl:', request);
+   // console.log('Request user profile () contrl:', request);
     if (!request.user) {
       return { message: 'Not logged in' };
     }
@@ -49,7 +48,7 @@ async debug(@Req() req) {
   async register(@Req() request: any, @Body() credentials: RegisterDto) {
     try {
       if (!request.user) {
-        return await this.auth3Service.register(credentials);
+        return await this.authService.register(credentials); // Changed from auth3Service
       } else {
         throw new BadRequestException('You are currently logged in. Please logout to create a new account.');
       }
@@ -67,7 +66,7 @@ async debug(@Req() req) {
   @UseGuards(AuthGuard('local')) // This guard triggers your LocalStrategy
   @HttpCode(HttpStatus.OK)
   async login(@Request() req: { user: User }, @Res({ passthrough: true }) response: Response) {
-    const { accessToken, refreshToken, user } = await this.auth3Service.login(req.user);
+    const { accessToken, refreshToken, user } = await this.authService.login(req.user); // Changed from auth3Service
     
     response.cookie('refreshToken', refreshToken, {
       httpOnly: true,
@@ -86,7 +85,7 @@ async debug(@Req() req) {
   @HttpCode(HttpStatus.OK)
   async refreshTokens(@Request() req: { user: RefreshTokenPayload & { refreshToken: string } }, @Res({ passthrough: true }) response: Response) {
     // req.user is populated by JwtRefreshStrategy and includes userId and the original refreshToken
-    const { accessToken, newRefreshToken } = await this.auth3Service.refreshTokens(req.user.userId, req.user.refreshToken);
+    const { accessToken, newRefreshToken } = await this.authService.refreshTokens(req.user.userId, req.user.refreshToken); // Changed from auth3Service
     
     response.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
@@ -101,7 +100,7 @@ async debug(@Req() req) {
   @Post('logout')
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req: { user: AuthenticatedUserPayload }, @Res({ passthrough: true }) response: Response) {
-    await this.auth3Service.logout(req.user.userId);
+    await this.authService.logout(req.user._id); // Changed from auth3Service
     response.clearCookie('refreshToken', {
         httpOnly: true,
         secure: process.env.NODE_ENV !== 'development',

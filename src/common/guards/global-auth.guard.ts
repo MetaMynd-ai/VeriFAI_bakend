@@ -4,7 +4,7 @@ import { Reflector } from '@nestjs/core';
 import { InjectModel } from '@nestjs/mongoose';
 import { AuthGuard } from '@nestjs/passport';
 import { Model } from 'mongoose';
-import { User } from 'src/auth3/entities/user.entity';
+import { User } from 'src/auth/entities/user.entity';
 
 
 @Injectable()
@@ -42,15 +42,15 @@ export class GlobalAuthGuard extends AuthGuard('jwt') implements CanActivate {
     // Ensure your JWT strategy's validate function returns an object containing the user ID.
     // Common property names for user ID in JWT payload are 'sub', 'id', or 'userId'.
     // Adjust 'request.user.userId' below to match the property name in your JWT payload.
-    if (!request.user || !request.user.userId) { 
+    if (!request.user || !request.user._id) { 
       // For example, if your JWT payload uses 'sub' for user ID, change to: !request.user.sub
-      throw new UnauthorizedException('User identifier not found in JWT payload. Ensure your JWT strategy returns it.');
+      throw new UnauthorizedException('User identifier not found in JWT payload. Ensure your JWT strategy returns it as _id.');
     }
 
     const userFromDb = await this.userModel.findOne({
       // Adjust 'request.user.userId' to match the property name for user ID in your JWT payload.
       // e.g., if JWT payload has { sub: 'actual_user_id' }, use request.user.sub
-      _id: request.user.userId 
+      _id: request.user._id 
     });
 
     if (!userFromDb) {

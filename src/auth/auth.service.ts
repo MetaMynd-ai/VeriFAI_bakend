@@ -9,7 +9,7 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config'; // Import ConfigService
 
 @Injectable()
-export class Auth3Service {
+export class AuthService { // Changed from Auth3Service
   constructor(
     @InjectModel(User.name) private userModel: Model<User>,
     private jwtService: JwtService,
@@ -169,7 +169,7 @@ export class Auth3Service {
     return true;
   }
 
-  async sendConfirmationEmail(userId: string, email: string): Promise<boolean> {
+  async sendConfirmationEmail( email: string): Promise<boolean> {
     return true;
   }
 }

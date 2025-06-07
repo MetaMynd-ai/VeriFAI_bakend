@@ -12,12 +12,12 @@ import { IDIssuer, IDIssuerSchema } from '../../issuers/entities/issuer.entity';
 import { HttpModule } from '@nestjs/axios';
 import { CypherModule } from 'src/cypher/cypher.module';
 import { IdentitiesModule } from '../identities.module';
-import { Auth3Module } from 'src/auth3/auth3.module';
+import { AuthModule } from 'src/auth/auth.module';
 
 @Module({
   imports: [
     
-    forwardRef(() =>  Auth3Module),
+    forwardRef(() =>  AuthModule),
     HttpModule,
     SmartConfigModule,
     forwardRef(() =>  WalletsModule),

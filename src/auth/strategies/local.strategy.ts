@@ -1,13 +1,13 @@
 import { Strategy } from 'passport-local';
 import { PassportStrategy } from '@nestjs/passport';
 import { Injectable, UnauthorizedException } from '@nestjs/common';
-import { Auth3Service } from '../auth3.service'; // Adjust path if necessary
+import { AuthService } from '../auth.service'; // Adjust path if necessary
 import { LoginDto } from '../dto/login.dto'; // Assuming LoginDto has email, username, and password
 import { Request } from 'express'; // Import Request from express
 
 @Injectable()
 export class LocalStrategy extends PassportStrategy(Strategy) {
-  constructor(private auth3Service: Auth3Service) {
+  constructor(private authService: AuthService) {
     super({
       usernameField: 'email_or_username', // Update to match the DTO field name for Passport's default extraction
       passReqToCallback: true, 
@@ -28,7 +28,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
     }
 
     // Pass the complete DTO from the request body to the service for validation.
-    const user = await this.auth3Service.validateUser(loginDtoFromRequest);
+    const user = await this.authService.validateUser(loginDtoFromRequest);
     if (!user) {
       throw new UnauthorizedException('Invalid credentials');
     }
