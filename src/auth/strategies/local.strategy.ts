@@ -19,7 +19,7 @@ export class LocalStrategy extends PassportStrategy(Strategy) {
   // We will still use loginDtoFromRequest for clarity and to ensure we get the whole DTO.
   async validate(req: Request, usernameInput: string, passwordInput: string): Promise<any> {
     const loginDtoFromRequest = req.body as LoginDto;
-    console.log('Login DTO from request:', loginDtoFromRequest);
+    console.log('Login DTO from request localStrategy:', loginDtoFromRequest);
 
     // Ensure the DTO from the body contains email_or_username and password.
     // This should ideally be guaranteed by a ValidationPipe on the controller using DTO validation.

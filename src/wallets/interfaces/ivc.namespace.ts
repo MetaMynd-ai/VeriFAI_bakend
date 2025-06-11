@@ -28,7 +28,7 @@ export namespace I_IVC {
             }
 
             export interface ICreate {
-                userId: string
+                owner: string
             }
 
             export interface IAssociate {
@@ -129,9 +129,9 @@ export namespace IVC {
             export class Create implements I_IVC.IWallet.IRequest.ICreate {
                 @ApiProperty({
                     type: String,
-                    description: 'The user ID'
+                    description: 'The user/owner'
                 })
-                userId: string
+                owner: string
             }
 
             export class Associate implements I_IVC.IWallet.IRequest.IAssociate {

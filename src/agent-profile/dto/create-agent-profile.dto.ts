@@ -1,4 +1,4 @@
-import { AgentCapability } from '../entities/agent-capability.enum';
+import { AgentCapability } from '../entities/agent.enum';
 import { ApiProperty } from '@nestjs/swagger';
 
 export class CreateAgentProfileDto {

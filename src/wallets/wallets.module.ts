@@ -11,6 +11,7 @@ import { IDCredential, IDCredentialSchema } from 'src/identities/credentials/ent
 import { CypherModule } from 'src/cypher/cypher.module'
 import { WalletsKeyModule } from '../wallets-key/wallets-key.module'
 import { IdentitiesModule } from 'src/identities/identities.module'
+import { AgentProfileModule } from 'src/agent-profile/agent-profile.module' // Import AgentProfileModule
 
 @Module({
   imports: [
@@ -22,7 +23,8 @@ import { IdentitiesModule } from 'src/identities/identities.module'
     MongooseModule.forFeature([{ name: IDIssuer.name, schema: IDIssuerSchema }]),
     MongooseModule.forFeature([{ name: IDCredential.name, schema: IDCredentialSchema }]),
     forwardRef(() => WalletsKeyModule), // Forward reference to avoid circular dependency
-    forwardRef(() => IdentitiesModule) // Forward reference to avoid circular dependency
+    forwardRef(() => IdentitiesModule), // Forward reference to avoid circular dependency
+    forwardRef(() => AgentProfileModule), // Add AgentProfileModule to imports
   ],
   controllers: [
     WalletsController

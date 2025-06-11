@@ -20,7 +20,7 @@ import { AuthModule } from 'src/auth/auth.module';
     forwardRef(() =>  AuthModule),
     HttpModule,
     SmartConfigModule,
-    forwardRef(() =>  WalletsModule),
+    forwardRef(() => WalletsModule),
     forwardRef(() => IdentitiesModule),
     CypherModule,
     MongooseModule.forFeature([{ name: IDCredential.name, schema:IDCredentialSchema }]),

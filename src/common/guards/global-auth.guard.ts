@@ -27,7 +27,7 @@ export class GlobalAuthGuard extends AuthGuard('jwt') implements CanActivate {
     console.log('GlobalAuthGuard: Route  ', context.getHandler().name );
    
     if (isPublic) {
-      console.log('GlobalAuthGuard canActivate called for public route');
+      console.log('GlobalAuthGuard canActivate called for public route with ', request.method, ' method');
       return true;
     }
 

@@ -66,15 +66,16 @@ async debug(@Req() req) {
   @UseGuards(AuthGuard('local')) // This guard triggers your LocalStrategy
   @HttpCode(HttpStatus.OK)
   async login(@Request() req: { user: User }, @Res({ passthrough: true }) response: Response) {
+    console.log('Login requssest user:', req.user);
     const { accessToken, refreshToken, user } = await this.authService.login(req.user); // Changed from auth3Service
-    
+    console.log('refreshToken:', refreshToken);
     response.cookie('refreshToken', refreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development', // true in production
-      sameSite: 'lax', // Or 'strict' or 'none' (if 'none', secure must be true)
-      // path: '/', // Optional: cookie path
-      // maxAge: 7 * 24 * 60 * 60 * 1000, // Optional: cookie expiry (matches refresh token expiry)
-      // domain: 'yourdomain.com' // Optional: set your domain in production
+      secure:true,// true in production
+      sameSite: 'none', // Or 'strict' or 'none' (if 'none', secure must be true)
+      path: '/', // Optional: cookie path
+      maxAge: 7 * 24 * 60 * 60 * 1000, // Optional: cookie expiry (matches refresh token expiry)
+      domain: 'smartapi.trustchainlabs.com' // Optional: set your domain in production
     });
 
     return { accessToken, user };
@@ -89,8 +90,11 @@ async debug(@Req() req) {
     
     response.cookie('refreshToken', newRefreshToken, {
       httpOnly: true,
-      secure: process.env.NODE_ENV !== 'development',
-      sameSite: 'lax',
+      secure:true,// true in production
+      sameSite: 'none', // Or 'strict' or 'none' (if 'none', secure must be true)
+      path: '/', // Optional: cookie path
+      maxAge: 7 * 24 * 60 * 60 * 1000, // Optional: cookie expiry (matches refresh token expiry)
+      domain: 'smartapi.trustchainlabs.com' // Optional: set your domain in production
     });
     
     return { accessToken };
@@ -101,10 +105,12 @@ async debug(@Req() req) {
   @HttpCode(HttpStatus.OK)
   async logout(@Request() req: { user: AuthenticatedUserPayload }, @Res({ passthrough: true }) response: Response) {
     await this.authService.logout(req.user._id); // Changed from auth3Service
-    response.clearCookie('refreshToken', {
+   response.clearCookie('refreshToken', {
         httpOnly: true,
-        secure: process.env.NODE_ENV !== 'development',
-        sameSite: 'lax',
+        secure: true, // Consistently true
+        sameSite: 'none', // Must be 'none' for cross-domain
+        path: '/',
+        domain: 'smartapi.trustchainlabs.com' // Consistent domain
     });
     return { message: 'Logged out successfully' };
   }

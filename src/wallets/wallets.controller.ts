@@ -44,34 +44,34 @@ export class WalletsController {
     description: "Returns a HederaWalletHistory object."
   })
   @ApiParam({
-    name: 'userId',
+    name: 'owner',
     required: true,
     type: 'string',
-    description: 'The user id of the wallet to get.'
+    description: 'The owner of the wallet to get.'
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Get(':userId')
+  @Get(':owner')
   async getWallet(
     @Req() request,
-    @Param('userId') userId: string
+    @Param('owner') owner: string
   ): Promise<I_IVC.IWallet.IHistory> {
     try {
-       if (request.user.username!=userId && request.user.role !== 'admin') {
-     
-      throw new BadRequestException(`Unauthorized: You (${request.user.username}) are not allowed to access the wallet of user: ${userId}`);
+    //    if (request.user.username!=owner && request.user.role !== 'admin') {
 
-    }
-    
-      return await this.walletsService.getWallet(userId);
+    //   throw new BadRequestException(`Unauthorized: You (${request.user.username}) are not allowed to access the wallet of user: ${owner}`);
+
+    // }
+
+      return await this.walletsService.getWallet(owner);
     } catch(error) {
       throw new BadRequestException(error.message);
     }
   }
-  @Get(':userId/tokens')
+  @Get(':owner/tokens')
   @ApiOperation({ summary: 'Get tokens for a user wallet' })
   @ApiParam({
-      name: 'userId',
+      name: 'owner',
       required: true,
       description: 'The ID of the user whose wallet tokens to retrieve'
   })
@@ -113,40 +113,42 @@ export class WalletsController {
     schema: {
       type: 'object',
       properties: {
-        owner: { type: 'string' },
         type: { type: 'string', enum: ['user', 'agent'], default: 'user' }
       },
-      required: ['owner', 'type',]
+      required: ['type']
     }
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
   async createWallet(
     @Req() request,
-    @Body() body: { owner: string; type?: 'user' | 'agent'; },
+    @Body() body: { type?: 'user' | 'agent'; },
   ): Promise<{ wallet: Wallet, did: any }> {
-    const { owner, type = 'user' } = body;
-    if (request.user.username!=owner && request.user.role !== 'admin') {
-      console.log('Unauthorized access attempt by:', request.user.username, 'for owner:', owner);
-      throw new BadRequestException(`Unauthorized: You (${request.user.username}) are not allowed to create a wallet for owner: ${owner}`);
+    const { type = 'user' } = body;
+    // const ownerId = request.user._id; // Previous: Used _id from the authenticated user
+    const ownerUsername = request.user.username; // New: Use username from the authenticated user
 
-    }
+    // The owner is now derived from the authenticated user.
+    // GlobalAuthGuard already ensures request.user (and request.user.username) is populated.
     
-    if (!owner || !type) {
-      throw new BadRequestException('Missing required fields: owner, type');
+    if (!type) { // owner is no longer from body, so removed from this check
+      throw new BadRequestException('Missing required field: type');
     }
     if (type !== 'user' && type !== 'agent') {
       throw new BadRequestException('Invalid wallet type. Must be "user" or "agent".');
     }
     if (type === 'user') {
-      const existing = await this.walletsService.findOne({ owner, type: 'user' });
+      // Use ownerUsername (which is request.user.username) for the check,
+      // assuming Wallet.owner stores the username.
+      const existing = await this.walletsService.findOne({ owner: ownerUsername, type: 'user' });
       if (existing) {
         throw new BadRequestException('A user wallet already exists for this owner.');
       }
     }
     
-    // For agent, allow multiple wallets per owner
-    return this.walletsService.createWallet({ userId: owner, type });
+    // Pass ownerUsername (request.user.username) as userId to the service,
+    // as per the requirement that the service needs username.
+    return this.walletsService.createWallet({ owner: ownerUsername, type });
   }
 
   @ApiOperation({
@@ -164,22 +166,22 @@ export class WalletsController {
     required: true
   })
   @ApiParam({
-    name: 'userId',
+    name: 'owner',
     required: true,
     type: 'string',
-    description: 'The userId to delete.'
+    description: 'The owner to delete.'
   })
   @ApiNotFoundResponse()
   @ApiBadRequestResponse()
-  @Delete(':userId')
+  @Delete(':owner')
   async deleteWallet(
     @Req() request,
-    @Param('userId') userId: string,
+    @Param('owner') owner: string,
     @Body() deleteWalletRequest: IVC.Wallet.Request.Delete
   ): Promise<ISmartNode.ISmartTransaction.IDetails> {
     try {
       return await this.walletsService.deleteWallet(
-        userId,
+        owner,
         AccountId.fromString(deleteWalletRequest.transferAccountId)
       )
     } catch(error) {
@@ -272,15 +274,15 @@ export class WalletsController {
     }
   }
 
-  @Get(':ownerId/agents')
+  @Get(':owner/agents')
   @ApiOperation({ summary: 'Get all agent wallets for a given user/owner' })
-  @ApiOkResponse({ type: [Wallet], description: 'Returns all agent wallets for the given owner/userId.' })
-  @ApiParam({ name: 'ownerId', required: true, type: 'string', description: 'The owner/userId to fetch agent wallets for.' })
+  @ApiOkResponse({ type: [Wallet], description: 'Returns all agent wallets for the given owner as username.' })
+  @ApiParam({ name: 'owner', required: true, type: 'string', description: 'The owner as username to fetch agent wallets for.' })
   async getAgentWallets(
-    @Param('ownerId') ownerId: string
+    @Param('owner') owner: string
   ): Promise<Wallet[]> {
     //console.log('Fetching agent wallets for userId:', req);
-    return this.walletsService.findAllAgents({ owner: ownerId, type: 'agent' });
+    return this.walletsService.findAllAgents({ owner, type: 'agent' });
   }
 
 }
