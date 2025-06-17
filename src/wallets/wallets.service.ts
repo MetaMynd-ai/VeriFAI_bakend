@@ -9,7 +9,7 @@ import {
     Wallet,
     WalletDocument
 } from './entities/wallet.entity'
-import {IVC, I_IVC} from './interfaces/ivc.namespace'
+import { IVC, I_IVC } from './interfaces/ivc.namespace'
 import {
     AccountBalanceQuery,
     AccountId,
@@ -20,8 +20,8 @@ import {
     AccountCreateTransaction
 } from '@hashgraph/sdk'
 import * as moment from 'moment'
-import {Model} from 'mongoose'
-import {InjectModel} from '@nestjs/mongoose'
+import { Model } from 'mongoose'
+import { InjectModel } from '@nestjs/mongoose'
 import axios from 'axios';
 
 import {
@@ -32,20 +32,21 @@ import {
     WalletTransaction,
     WalletTransactionDocument
 } from './entities/transaction.entity'
-import {ClientService} from '@hsuite/client'
-import {HederaClientHelper} from '@hsuite/helpers'
-import {SmartConfigService} from '@hsuite/smart-config'
+import { ClientService } from '@hsuite/client'
+import { HederaClientHelper } from '@hsuite/helpers'
+import { SmartConfigService } from '@hsuite/smart-config'
 import Decimal from 'decimal.js'
-import {IpfsResolverService} from '@hsuite/ipfs-resolver'
-import {IDIssuer, IDIssuerDocument} from 'src/issuers/entities/issuer.entity'
-import {IDCredential, IDCredentialDocument} from 'src/identities/credentials/entities/credential.entity'
-import {CypherService} from 'src/cypher/cypher.service'
-import {ConfigService} from '@nestjs/config'
+import { IpfsResolverService } from '@hsuite/ipfs-resolver'
+import { IDIssuer, IDIssuerDocument } from 'src/issuers/entities/issuer.entity'
+import { IDCredential, IDCredentialDocument } from 'src/identities/credentials/entities/credential.entity'
+import { CypherService } from 'src/cypher/cypher.service'
+import { ConfigService } from '@nestjs/config'
 import * as lodash from 'lodash'
-import {DiscordLogger} from 'src/common/logger/discord-logger.service';
+import { DiscordLogger } from 'src/common/logger/discord-logger.service';
 import { WalletsKeyService } from '../wallets-key/wallets-key.service';
 import { IdentitiesService } from 'src/identities/identities.service';
 import { AgentProfileService } from 'src/agent-profile/agent-profile.service';
+import { IdentityDocument } from 'src/identities/entities/identity.entity'
 
 @Injectable()
 export class WalletsService implements OnModuleInit {
@@ -78,7 +79,7 @@ export class WalletsService implements OnModuleInit {
         );
     }
 
-    async onModuleInit() {}
+    async onModuleInit() { }
 
     async getWallet(
         userId: string
@@ -127,7 +128,7 @@ export class WalletsService implements OnModuleInit {
                             };
                         }
                     } else {
-                         agentProfileData = {
+                        agentProfileData = {
                             agentName: 'no profile found',
                             purpose: 'no profile found',
                             error: 'Agent wallet account ID not found'
@@ -136,8 +137,8 @@ export class WalletsService implements OnModuleInit {
                 }
 
                 // populating the transactions for the wallet...
-                await wallet.populate({path: 'transactions'});
-                
+                await wallet.populate({ path: 'transactions' });
+
                 // SMART-NODE CALL for balance and nfts (assuming this modifies wallet.account.balance and fetches nfts)
                 wallet.account.balance = (await this.nodeClientService.axios.get(
                     `/accounts/restful/${wallet.account.id}/tokens`)).data;
@@ -145,17 +146,17 @@ export class WalletsService implements OnModuleInit {
                     `/accounts/restful/${wallet.account.id}/nfts`)).data.nfts;
 
                 let issuers = await this.issuerModel.find({
-                    nftID: {$in: wallet.account.balance.tokens.map((token: any) => token.token_id)}
+                    nftID: { $in: wallet.account.balance.tokens.map((token: any) => token.token_id) }
                 });
 
                 let credentials: Array<IDCredentialDocument> = await this.credentialModel.find({
                     owner: userId,
-                    issuer: {$in: issuers.map(issuer => issuer.issuer)}
+                    issuer: { $in: issuers.map(issuer => issuer.issuer) }
                 });
 
                 let metadataPromises = nftsData.map(nft => this.ipfsResolver.getMetadata(nft.metadata));
                 let metadataResponses = await Promise.all(metadataPromises);
-                const processedNfts = [ ...nftsData ]; // Create a mutable copy
+                const processedNfts = [...nftsData]; // Create a mutable copy
 
                 for (let index = 0; index < metadataResponses.length; index++) {
                     const metadata = metadataResponses[index];
@@ -204,12 +205,12 @@ export class WalletsService implements OnModuleInit {
 
                 } else {
                     this.logger.error({
-                  
+
                         userId: userId,
                         error: error.message,
                         method: 'WalletsService.getWallet()',
                         stack: error.stack
-                    },'Error fetching wallet details');
+                    }, 'Error fetching wallet details');
                     await this.discordLogger.error(`getWallet error: ${error} for user ${userId}`, error.stack, 'WalletsService.getWallet()');
                 }
 
@@ -218,7 +219,7 @@ export class WalletsService implements OnModuleInit {
         });
     }
 
-    async createWallet(createWalletRequest: IVC.Wallet.Request.Create & { type?: 'user' | 'agent' }): Promise<{ wallet: Wallet, did: any }> {
+    async createWallet(createWalletRequest: IVC.Wallet.Request.Create & { type?: 'user' | 'agent' }, shouldCreateDid: boolean): Promise<{ wallet: Wallet, did: any }> {
         return new Promise(async (resolve, reject) => {
             try {
                 const type = createWalletRequest.type || 'user';
@@ -255,25 +256,35 @@ export class WalletsService implements OnModuleInit {
                     const walletDocument = new this.walletModel({
                         owner: createWalletRequest.owner,
                         type,
-                        account:  {
+                        account: {
                             id: receipt.accountId.toString(),
                             balance: null
                         },
                         transactions: []
                     });
                     await walletDocument.save();
-                    // Create DID for this user/agent
-                    let didResponse;
-                    if (type === 'agent') {
-                        didResponse = await this.identitiesService.createDID(receipt.accountId.toString());
+                    if (shouldCreateDid) {
+                        // Create DID for this user/agent
+                        let didResponse: IdentityDocument;
+                        if (type === 'agent') {
+                            didResponse = await this.identitiesService.createDID(receipt.accountId.toString());
+                        } else {
+                            didResponse = await this.identitiesService.createDID(createWalletRequest.owner);
+                        }
+                        this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.owner}, type: ${type}, accountId: ${receipt.accountId.toString()}`);
+                        resolve({
+                            wallet: <Wallet>walletDocument.toJSON(),
+                            did: didResponse
+                        });
                     } else {
-                        didResponse = await this.identitiesService.createDID(createWalletRequest.owner);
+
+                        this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.owner}, type: ${type}, accountId: ${receipt.accountId.toString()}`);
+                        resolve({
+                            wallet: <Wallet>walletDocument.toJSON(),
+                            did: null
+                        });
                     }
-                    this.logger.log(`Wallet created successfully - userId: ${createWalletRequest.owner}, type: ${type}, accountId: ${receipt.accountId.toString()}`);
-                    resolve({
-                        wallet: <Wallet>walletDocument.toJSON(),
-                        did: didResponse
-                    });
+
                 } else {
                     throw new Error(`transaction failed with status ${receipt.status}`);
                 }
@@ -312,7 +323,7 @@ export class WalletsService implements OnModuleInit {
                 const receipt = await submitTx.getReceipt(client);
 
                 if (receipt.status == Status.Success) {
-                   
+
                     this.logger.log(`Token associated successfully - tokenId: ${associateWalletRequest.tokenId}, walletId: ${associateWalletRequest.walletId}`);
                     resolve({
                         status: receipt.status.toString(),
@@ -323,7 +334,7 @@ export class WalletsService implements OnModuleInit {
                 }
             } catch (error) {
                 this.logger.error({
-                 
+
                     tokenId: associateWalletRequest.tokenId,
                     walletId: associateWalletRequest.walletId,
                     error: error.message,
@@ -357,7 +368,7 @@ export class WalletsService implements OnModuleInit {
 
                 if (receipt.status == Status.Success) {
                     this.logger.log(`Token dissociation successful - tokenId: ${associateWalletRequest.tokenId}, walletId: ${associateWalletRequest.walletId}, transactionId: ${submitTx.transactionId.toString()}`);
-                  
+
                     resolve({
                         status: receipt.status.toString(),
                         transactionId: submitTx.transactionId.toString()
@@ -484,7 +495,7 @@ export class WalletsService implements OnModuleInit {
                 if (receipt.status == Status.Success) {
                     this.logger.log(`Wallet deletion successful - userId: ${userId}, transactionId: ${submitTx.transactionId.toString()}`);
                     await walletDocument.deleteOne();
-                  
+
                     resolve({
                         status: receipt.status.toString(),
                         transactionId: submitTx.transactionId.toString()
@@ -520,7 +531,7 @@ export class WalletsService implements OnModuleInit {
                     wallet = await this.walletModel.findOne({
                         'account.id': userId
                     });
-                   
+
                 }
                 if (!wallet) {
                     throw (new Error(`wallet not found for user ${userId}`));
@@ -580,50 +591,50 @@ export class WalletsService implements OnModuleInit {
     async findOne(filter: any): Promise<WalletDocument | null> {
         return this.walletModel.findOne(filter);
     }
-    async findAllAgents(filter: any): Promise<any[]> { 
-      const wallets = await this.walletModel.find(filter).exec();
-      const results = [];
+    async findAllAgents(filter: any): Promise<any[]> {
+        const wallets = await this.walletModel.find(filter).exec();
+        const results = [];
 
-      for (const wallet of wallets) {
-        let agentProfileData: any = {};
-        if (wallet.type === 'agent' && wallet.account && typeof wallet.account.id === 'string') {
-          try {
-            const agentProfile = await this.agentProfileService.findByAgentAccountId(wallet.account.id);
-            if (agentProfile) {
-              agentProfileData = {
-                agentName: agentProfile.agentName,
-                purpose: agentProfile.purpose,
-              };
-            } else {
-              agentProfileData = {
-                agentName: 'no profile found',
-                purpose: 'no profile found',
-              };
+        for (const wallet of wallets) {
+            let agentProfileData: any = {};
+            if (wallet.type === 'agent' && wallet.account && typeof wallet.account.id === 'string') {
+                try {
+                    const agentProfile = await this.agentProfileService.findByAgentAccountId(wallet.account.id);
+                    if (agentProfile) {
+                        agentProfileData = {
+                            agentName: agentProfile.agentName,
+                            purpose: agentProfile.purpose,
+                        };
+                    } else {
+                        agentProfileData = {
+                            agentName: 'no profile found',
+                            purpose: 'no profile found',
+                        };
+                    }
+                } catch (error) {
+                    this.logger.error(`Error fetching agent profile for account ID ${wallet.account.id} in findAllAgents: ${error.message}`, error.stack);
+                    agentProfileData = {
+                        agentName: 'no profile found',
+                        purpose: 'no profile found',
+                        error: 'Error fetching profile'
+                    };
+                }
+            } else if (wallet.type === 'agent') {
+                agentProfileData = {
+                    agentName: 'no profile found',
+                    purpose: 'no profile found',
+                    error: 'Agent wallet account ID not found or invalid'
+                };
             }
-          } catch (error) {
-            this.logger.error(`Error fetching agent profile for account ID ${wallet.account.id} in findAllAgents: ${error.message}`, error.stack);
-            agentProfileData = {
-              agentName: 'no profile found',
-              purpose: 'no profile found',
-              error: 'Error fetching profile'
-            };
-          }
-        } else if (wallet.type === 'agent') {
-            agentProfileData = {
-                agentName: 'no profile found',
-                purpose: 'no profile found',
-                error: 'Agent wallet account ID not found or invalid'
-            };
+            const walletObj = wallet.toObject();
+            const { _id, ...restOfWallet } = walletObj;
+            results.push({
+                _id,
+                ...agentProfileData, // agentName, purpose, and optional error
+                ...restOfWallet
+            });
         }
-        const walletObj = wallet.toObject();
-        const { _id, ...restOfWallet } = walletObj;
-        results.push({ 
-            _id, 
-            ...agentProfileData, // agentName, purpose, and optional error
-            ...restOfWallet 
-        });
-      }
-      return results;
+        return results;
     }
 
     async findByAccountId(accountId: string): Promise<WalletDocument | null> {

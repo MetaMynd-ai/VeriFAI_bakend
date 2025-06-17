@@ -24,7 +24,7 @@ export class AgentProfileService {
     try {
       // Get agent identity and DID
       const agentIdentity = await this.identitiesService.findByAccountId(agentAccountId);
-      if (!agentIdentity) throw new BadRequestException('No DID found for this Hedera account');
+      if (!agentIdentity) throw new BadRequestException(`No DID found for this agent, issue a DID for ${agentAccountId}`);
       const agentDid = agentIdentity.did_id;
       // Get agent owner DID via wallet
       let agentOwnerDID = '';
@@ -81,12 +81,12 @@ export class AgentProfileService {
   async createWithNewAgentAccount(createAgentProfileDto: CreateAgentProfileDto, authenticatedUserId: string): Promise<AgentProfile> {
     try {
       // Create agent wallet
-      const agentWallet = await this.walletsService.createWallet({ owner: authenticatedUserId, type: 'agent' });
+      const agentWallet = await this.walletsService.createWallet({ owner: authenticatedUserId, type: 'agent' }, true);
       const agentAccountId = agentWallet.wallet.account.id;
 
       // Get agent identity and DID
       const agentIdentity = await this.identitiesService.findByAccountId(agentAccountId);
-      if (!agentIdentity) throw new BadRequestException('No DID found for this Hedera account');
+      if (!agentIdentity) throw new BadRequestException(`No DID found for this agent, issue a DID for ${agentAccountId}`);
       const agentDid = agentIdentity.did_id;
 
       // Get agent owner DID

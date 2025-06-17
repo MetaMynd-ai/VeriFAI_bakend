@@ -99,57 +99,60 @@ export class WalletsController {
       });
   }
   @Post()
-  @ApiOperation({
-    summary: 'create a wallet for a specific user.',
-    description: 'this endpoint will create a wallet for a specific user.'
-  })
-  @ApiOkResponse({
-    type: Wallet,
-    isArray: false,
-    status: 200,
-    description: "Returns a Wallet object."
-  })
-  @ApiBody({
-    schema: {
-      type: 'object',
-      properties: {
-        type: { type: 'string', enum: ['user', 'agent'], default: 'user' }
-      },
-      required: ['type']
-    }
-  })
-  @ApiNotFoundResponse()
-  @ApiBadRequestResponse()
-  async createWallet(
-    @Req() request,
-    @Body() body: { type?: 'user' | 'agent'; },
-  ): Promise<{ wallet: Wallet, did: any }> {
-    const { type = 'user' } = body;
-    // const ownerId = request.user._id; // Previous: Used _id from the authenticated user
-    const ownerUsername = request.user.username; // New: Use username from the authenticated user
-
-    // The owner is now derived from the authenticated user.
-    // GlobalAuthGuard already ensures request.user (and request.user.username) is populated.
-    
-    if (!type) { // owner is no longer from body, so removed from this check
-      throw new BadRequestException('Missing required field: type');
-    }
-    if (type !== 'user' && type !== 'agent') {
-      throw new BadRequestException('Invalid wallet type. Must be "user" or "agent".');
-    }
-    if (type === 'user') {
-      // Use ownerUsername (which is request.user.username) for the check,
-      // assuming Wallet.owner stores the username.
-      const existing = await this.walletsService.findOne({ owner: ownerUsername, type: 'user' });
-      if (existing) {
-        throw new BadRequestException('A user wallet already exists for this owner.');
-      }
-    }
-    
-    // Pass ownerUsername (request.user.username) as userId to the service,
-    // as per the requirement that the service needs username.
-    return this.walletsService.createWallet({ owner: ownerUsername, type });
+@ApiOperation({
+  summary: 'create a wallet for a specific user or agent.',
+  description: 'this endpoint will create a wallet for a specific user or agent. Optionally, it can also create a DID if "createDid" query param is true.'
+})
+@ApiOkResponse({
+  type: Wallet,
+  isArray: false,
+  status: 200,
+  description: "Returns a Wallet object."
+})
+@ApiBody({
+  schema: {
+    type: 'object',
+    properties: {
+      type: { type: 'string', enum: ['user', 'agent'], default: 'user' }
+    },
+    required: ['type']
   }
+})
+@ApiQuery({
+  name: 'createDid',
+  required: false,
+  type: Boolean,
+  description: 'Whether to also create a DID for this wallet (default: false)'
+})
+@ApiNotFoundResponse()
+@ApiBadRequestResponse()
+async createWallet(
+  @Req() request,
+  @Body() body: { type?: 'user' | 'agent'; },
+  @Query('createDid') createDid?: string, // Will be 'true' or 'false' as string
+): Promise<{ wallet: Wallet, did?: any }> {
+  const { type = 'user' } = body;
+  const ownerUsername = request.user.username;
+
+  if (!type) {
+    throw new BadRequestException('Missing required field: type');
+  }
+  if (type !== 'user' && type !== 'agent') {
+    throw new BadRequestException('Invalid wallet type. Must be "user" or "agent".');
+  }
+  if (type === 'user') {
+    const existing = await this.walletsService.findOne({ owner: ownerUsername, type: 'user' });
+    if (existing) {
+      throw new BadRequestException('A user wallet already exists for this owner.');
+    }
+  }
+
+  // Convert query param to boolean (default: false)
+  const shouldCreateDid = createDid === 'true';
+
+  // Pass the flag to the service
+  return this.walletsService.createWallet({ owner: ownerUsername, type }, shouldCreateDid);
+}
 
   @ApiOperation({
     summary: 'delete a wallet for a specific user.',
