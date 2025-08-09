@@ -32,6 +32,7 @@ import { HtsModule } from './hts/hts.module';
 
 import { SubscribeModule } from './hcs/subscribe/subscribe.module';
 import { WebSocketModule } from './websocket/websocket.module';
+import { ConversationModule } from './conversations/conversation.module';
 
 
 import testnet from '../config/settings/testnet';
@@ -85,7 +86,8 @@ import { GlobalAuthGuard } from './common/guards/global-auth.guard';
     ConsoleModule,
     LoggerModule,
     WebSocketModule,
-    PassportModule.register({ defaultStrategy: 'jwt', session: false }), // Updated PassportModule registration
+    PassportModule.register({ defaultStrategy: 'jwt', session: false }),
+    ConversationModule,
   ],
   controllers: [
     AppController
@@ -116,7 +118,6 @@ export class AppModule {
         AgentProfileModule,
         IssuersModule,
         IdentitiesModule,
-
         HtsModule,
         HcsModule,
         LoggerModule,

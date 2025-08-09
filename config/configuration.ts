@@ -16,5 +16,11 @@ export default () => ({
   client_environment: process.env.CLIENT_ENV,
   nftStorageToken: process.env.NFT_STORAGE_API_KEY,
   maxAutomaticTokenAssociations: process.env.MAX_AUTOMATIC_TOKEN_ASSOCIATIONS,
-  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL
+  discordWebhookUrl: process.env.DISCORD_WEBHOOK_URL,
+  openAI: {
+    apiKey: process.env.OPEN_AI_KEY,
+    model: 'gpt-4.1-mini',
+    temperature: 0.7,
+    maxTokens: 4096
+  }
 });

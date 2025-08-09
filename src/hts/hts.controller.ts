@@ -3,12 +3,81 @@ import { HtsService } from './hts.service';
 import { UnfreezeAccountsDto } from './dto/unfreeze-accounts.dto';
 import { WipeNftDto } from './dto/wipe-nft.dto'; // Import the WipeNftDto
 import { ApiTags, ApiQuery, ApiBody, ApiResponse, ApiOperation } from '@nestjs/swagger';
-
+import { TransferHbarDto } from './dto/transfer-hbar.dto';
 @ApiTags('HTS') // Swagger tag for grouping
 @Controller('hts')
 export class HtsController {
   constructor(private readonly htsService: HtsService) {}
+ @Post('transfer/hbar')
+  @ApiOperation({ summary: 'Transfer HBAR between accounts' })
+  @ApiBody({
+    description: 'HBAR transfer details',
+    type: TransferHbarDto,
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'HBAR transfer completed successfully',
+    schema: {
+      example: {
+        sender: '0.0.12345',
+        receiver: '0.0.67890',
+        amount: 100,
+        status: 'success',
+      },
+    },
+  })
+  @ApiResponse({ status: 400, description: 'Invalid input data or request.' })
+  @ApiResponse({ status: 500, description: 'Internal server error.' })
+  async transferHbar(
+    @Body() body: TransferHbarDto,
+  ): Promise<{ sender: string; receiver: string; amount: number; status: 'success' | 'failed'; error?: string }> {
+    if (!body || !body.sender || !body.receiver || body.amount == null) {
+      throw new BadRequestException('sender, receiver, and amount are required fields');
+    }
 
+    if (body.amount <= 0) {
+      throw new BadRequestException('Amount must be greater than 0');
+    }
+
+    try {
+      const result = await this.htsService.transferHbar(
+        body.sender,
+        body.receiver,
+        body.amount,
+        body.memo
+      );
+
+      if (result.status === 'failed') {
+        throw new HttpException(
+          {
+            sender: body.sender,
+            receiver: body.receiver,
+            amount: body.amount,
+            status: 'failed',
+            error: result.error,
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return result;
+    } catch (error) {
+      if (error instanceof HttpException) {
+        throw error;
+      }
+
+      throw new HttpException(
+        {
+          sender: body.sender,
+          receiver: body.receiver,
+          amount: body.amount,
+          status: 'failed',
+          error: error.message || 'An error occurred while transferring HBAR',
+        },
+        HttpStatus.INTERNAL_SERVER_ERROR,
+      );
+    }
+  }
   @Post('unfreeze')
   @ApiBody({
     description: 'List of account IDs to unfreeze',

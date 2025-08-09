@@ -84,6 +84,11 @@ async function bootstrap() {
   app.use(
     helmet({
       crossOriginResourcePolicy: false,
+      contentSecurityPolicy: {
+        directives: {
+          scriptSrc: ["'self'", "'unsafe-inline'", "https://cdn.socket.io"],
+        },
+      },
     }),
   );
 
@@ -92,6 +97,9 @@ async function bootstrap() {
 
   // enabling compression server side...
   app.use(compression());
+
+  // serve static files from public directory
+  app.use(express.static('public'));
 
   const config = new DocumentBuilder()
     .setTitle('VeriFai - Restful API')
@@ -115,7 +123,7 @@ async function bootstrap() {
 
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('api', app, document);
-
+  
   // start listening on the port...
   await app.listen(process.env.PORT || 3000);
 

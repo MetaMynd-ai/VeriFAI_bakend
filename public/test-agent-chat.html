@@ -1,0 +1,664 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Agent Chat API Test</title>
+    <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        #messages { border: 1px solid #ccc; height: 400px; overflow-y: scroll; padding: 10px; margin: 10px 0; }
+        .message { margin: 5px 0; }
+        .system { color: blue; }
+        .error { color: red; }
+        .success { color: green; }
+        button { margin: 5px; padding: 10px 15px; }
+        input { width: 300px; padding: 5px; }
+        .api-section { border: 1px solid #ddd; padding: 15px; margin: 10px 0; }
+        .session-info { background: #f0f0f0; padding: 10px; margin: 10px 0; }
+    </style>
+</head>
+<body>
+    <h1>🤖 Agent Chat API Test</h1>
+    <div id="status">🔄 Ready to start...</div>
+    
+    <div class="api-section">
+        <h3>🔑 Authentication</h3>
+        <input type="text" id="jwtToken" placeholder="Enter JWT Bearer Token (optional)" style="width: 500px;" />
+        <button id="clearTokenBtn">Clear Token</button>
+    </div>
+    
+    <div class="api-section">
+        <h3>🚀 Step 1: Create Chat Session</h3>
+        <div style="margin: 10px 0;">
+            <label style="font-weight: bold;">Topic Selection for Blockchain Transcript:</label><br>
+            <input type="radio" id="topicAgent1" name="topicAgent" value="agent1" checked>
+            <label for="topicAgent1">Use Agent 1 Topic (0.0.6154098)</label><br>
+            <input type="radio" id="topicAgent2" name="topicAgent" value="agent2">
+            <label for="topicAgent2">Use Agent 2 Topic (0.0.6153500)</label>
+        </div>
+        <button id="createSessionBtn">Create New Session</button>
+        <button id="getAllSessionsBtn">Get All Sessions</button>
+        <button id="getSessionDetailsBtn">Get Current Session Details</button>
+        <button id="getMessagesBtn">Get Session Messages</button>
+    </div>
+
+    <div class="api-section">
+        <h3>🔌 Step 2: Connect to WebSocket</h3>
+        <button id="connectBtn">Connect WebSocket</button>
+        <button id="disconnectBtn">Disconnect</button>
+    </div>
+    
+    <div class="api-section">
+        <h3>💬 Step 3: Chat Interface</h3>
+        <input type="text" id="messageInput" placeholder="Type a message..." />
+        <button id="sendMessageBtn">Send Message</button>
+        <button id="sendOnBehalfBtn">📤 Send on Behalf of Agent 1</button>
+        <button id="sendAndTriggerBtn">📤🤖 Send + Trigger AI Response</button>
+        <br>
+        <button id="triggerAI1Btn">🧠 Trigger Agent 1 AI</button>
+        <button id="triggerAI2Btn">🧠 Trigger Agent 2 AI</button>
+        <button id="streamMessagesBtn">📜 Stream Messages One-by-One</button>
+        <button id="endSessionBtn">🛑 End Session (API)</button>
+    </div>
+    
+    <div class="api-section">
+        <h3>📜 Step 4: Transcript Testing</h3>
+        <button id="generateTranscriptBtn">📄 Generate Transcript</button>
+        <button id="getTranscriptBtn">📋 Get Stored Transcript</button>
+        <button id="getTranscriptStatusBtn">🔍 Get Transcript Status</button>
+    </div>
+
+    <div class="session-info" id="sessionInfo" style="display: none;">
+        <h4>📋 Current Session Info</h4>
+        <div id="sessionDetails"></div>
+    </div>
+    
+    <div id="messages"></div>
+    
+    <script>
+        let socket = null;
+        let agentSocket = null;
+        let sessionId = null;
+        let currentAgent = '0.0.6154098';
+        let hasJoinedSession = false;
+        const API_BASE = 'http://localhost:4001';
+        
+        function getJwtToken() {
+            return document.getElementById('jwtToken').value.trim();
+        }
+        
+        function addMessage(sender, message, className = '') {
+            const div = document.createElement('div');
+            div.className = `message ${className}`;
+            const timestamp = new Date().toLocaleTimeString();
+            div.innerHTML = `<strong>[${timestamp}] ${sender}:</strong> ${message}`;
+            document.getElementById('messages').appendChild(div);
+            document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
+        }
+        
+        function updateStatus(message, className = '') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = message;
+            statusDiv.className = className;
+        }
+
+        function updateSessionInfo(data) {
+            const sessionInfo = document.getElementById('sessionInfo');
+            const sessionDetails = document.getElementById('sessionDetails');
+            sessionDetails.innerHTML = `
+                <strong>Session ID:</strong> ${data.sessionId || sessionId}<br>
+                <strong>Agent 1:</strong> ${data.agent1AccountId || '0.0.6154098'}<br>
+                <strong>Agent 2:</strong> ${data.agent2AccountId || '0.0.6153500'}<br>
+                <strong>Status:</strong> ${data.status || 'active'}<br>
+                <strong>Message Count:</strong> ${data.messageCount || 0}<br>
+                <strong>WebSocket URL:</strong> ${data.websocketUrl || 'ws://localhost:4001'}
+            `;
+            sessionInfo.style.display = 'block';
+        }
+        
+        // API CALLS
+        async function createSession() {
+            addMessage('API', '🚀 Creating new chat session...', 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const selectedTopic = document.querySelector('input[name="topicAgent"]:checked').value;
+                addMessage('System', `📝 Using ${selectedTopic} for blockchain transcript`, 'system');
+                
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    },
+                    body: JSON.stringify({
+                        agent1AccountId: '0.0.6154098',
+                        agent2AccountId: '0.0.6153500',
+                        preferredTopicAgent: selectedTopic
+                    })
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    sessionId = result.data.sessionId;
+                    hasJoinedSession = false; // Reset join flag for new session
+                    addMessage('API', `✅ Session created: ${sessionId}`, 'success');
+                    updateSessionInfo(result.data);
+                    updateStatus('✅ Session created', 'success');
+                } else {
+                    addMessage('API', `❌ Failed to create session: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getAllSessions() {
+            addMessage('API', '📋 Getting all sessions...', 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions`, {
+                    headers: {
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage('API', `✅ Found ${result.data.length} sessions`, 'success');
+                    result.data.forEach(session => {
+                        addMessage('Session', `${session.sessionId} - Status: ${session.status}`, 'system');
+                    });
+                } else {
+                    addMessage('API', `❌ Failed to get sessions: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getSessionDetails() {
+            if (!sessionId) {
+                addMessage('API', '❌ No session ID. Create a session first.', 'error');
+                return;
+            }
+            
+            addMessage('API', `📋 Getting session details for ${sessionId}...`, 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions/${sessionId}`, {
+                    headers: {
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage('API', `✅ Session details retrieved`, 'success');
+                    updateSessionInfo(result.data);
+                    addMessage('Details', JSON.stringify(result.data, null, 2), 'system');
+                } else {
+                    addMessage('API', `❌ Failed to get session: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getSessionMessages() {
+            if (!sessionId) {
+                addMessage('API', '❌ No session ID. Create a session first.', 'error');
+                return;
+            }
+
+            // Additional validation to ensure sessionId is not empty string
+            if (sessionId.trim() === '') {
+                addMessage('API', '❌ Session ID is empty. Create a session first.', 'error');
+                return;
+            }
+
+            addMessage('API', `💬 Getting messages for session ${sessionId}...`, 'system');
+
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions/${sessionId}/messages`, {
+                    headers: {
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+
+                const result = await response.json();
+
+                if (result.success) {
+                    addMessage('API', `✅ Found ${result.count} messages`, 'success');
+                    if (result.data && result.data.length > 0) {
+                        addMessage('Messages', '📜 Conversation History:', 'system');
+                        result.data.forEach((msg, index) => {
+                            addMessage(`${msg.fromAgentId}`, `${msg.message}`, 'system');
+                        });
+                    } else {
+                        addMessage('Messages', '📭 No messages found in this session yet', 'system');
+                    }
+                } else {
+                    addMessage('API', `❌ Failed to get messages: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function endSessionAPI() {
+            if (!sessionId) {
+                addMessage('API', '❌ No session ID. Create a session first.', 'error');
+                return;
+            }
+            
+            addMessage('API', `🛑 Ending session ${sessionId}...`, 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions/${sessionId}`, {
+                    method: 'DELETE',
+                    headers: {
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage('API', `✅ Session ended successfully`, 'success');
+                    addMessage('Transcript', `Transcript submitted: ${result.data.transcriptSubmitted}`, 'system');
+                    
+                    if (result.data.transcriptTransactions && result.data.transcriptTransactions.length > 0) {
+                        result.data.transcriptTransactions.forEach(tx => {
+                            addMessage('HashScan', `🔗 ${tx.hashscanUrl}`, 'success');
+                        });
+                    }
+                } else {
+                    addMessage('API', `❌ Failed to end session: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // TRANSCRIPT FUNCTIONS
+        async function generateTranscript() {
+            if (!sessionId) {
+                addMessage('API', '❌ No session ID. Create a session first.', 'error');
+                return;
+            }
+            
+            addMessage('API', `📄 Generating transcript for session ${sessionId}...`, 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions/${sessionId}/generate-transcript`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage('API', `✅ Transcript generated!`, 'success');
+                    addMessage('Transcript ID', result.data.transcriptId, 'success');
+                    addMessage('Is New', result.data.isNew ? 'Yes' : 'No (existing)', 'system');
+                    
+                    if (result.data.hcsTransactionId) {
+                        addMessage('HCS TX ID', result.data.hcsTransactionId, 'success');
+                        addMessage('HashScan', `🔗 ${result.data.hashscanUrl}`, 'success');
+                    } else {
+                        addMessage('HCS', '❌ Not submitted to blockchain yet', 'error');
+                    }
+                } else {
+                    addMessage('API', `❌ Failed to generate transcript: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getStoredTranscript() {
+            if (!sessionId) {
+                addMessage('API', '❌ No session ID. Create a session first.', 'error');
+                return;
+            }
+            
+            addMessage('API', `📋 Getting stored transcript for session ${sessionId}...`, 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions/${sessionId}/transcript`, {
+                    headers: {
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage('API', `✅ Transcript retrieved!`, 'success');
+                    addMessage('Message Count', result.data.messageCount, 'system');
+                    addMessage('HCS Status', result.data.submittedToHcs ? '✅ On-chain' : '❌ Not on-chain', 'system');
+                    
+                    // Display first few messages
+                    const conversation = result.data.transcript.conversation;
+                    if (conversation && conversation.length > 0) {
+                        addMessage('Preview', `📜 First message: "${conversation[0].message}"`, 'system');
+                        addMessage('Preview', `📜 Last message: "${conversation[conversation.length - 1].message}"`, 'system');
+                    }
+                    
+                    if (result.data.hashscanUrl) {
+                        addMessage('HashScan', `🔗 ${result.data.hashscanUrl}`, 'success');
+                    }
+                } else {
+                    addMessage('API', `❌ Failed to get transcript: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        async function getTranscriptStatus() {
+            if (!sessionId) {
+                addMessage('API', '❌ No session ID. Create a session first.', 'error');
+                return;
+            }
+            
+            addMessage('API', `🔍 Getting transcript status for session ${sessionId}...`, 'system');
+            
+            try {
+                const jwtToken = getJwtToken();
+                const response = await fetch(`${API_BASE}/api/agent-chat/sessions/${sessionId}/transcript-status`, {
+                    headers: {
+                        ...(jwtToken && { 'Authorization': `Bearer ${jwtToken}` })
+                    }
+                });
+                
+                const result = await response.json();
+                
+                if (result.success) {
+                    addMessage('API', `✅ Transcript status retrieved!`, 'success');
+                    addMessage('Submitted', result.data.submitted ? '✅ Yes' : '❌ No', 'system');
+                    addMessage('Message Count', result.data.messageCount, 'system');
+                    addMessage('Stored in DB', result.data.storedInDatabase ? '✅ Yes' : '❌ No', 'system');
+                    addMessage('On Blockchain', result.data.submittedToHcs ? '✅ Yes' : '❌ No', 'system');
+                    
+                    if (result.data.submissionDate) {
+                        addMessage('Date', new Date(result.data.submissionDate).toLocaleString(), 'system');
+                    }
+                    
+                    if (result.data.hashscanUrl) {
+                        addMessage('HashScan', `🔗 ${result.data.hashscanUrl}`, 'success');
+                    }
+                } else {
+                    addMessage('API', `❌ Failed to get status: ${result.message}`, 'error');
+                }
+            } catch (error) {
+                addMessage('API', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+        
+        // WEBSOCKET FUNCTIONS
+        function connectWebSocket() {
+            if (!sessionId) {
+                addMessage('WebSocket', '❌ Create a session first!', 'error');
+                return;
+            }
+            
+            // Check if already connected
+            if (agentSocket && agentSocket.connected) {
+                addMessage('WebSocket', '✅ Already connected to WebSocket', 'system');
+                return;
+            }
+            
+            // Disconnect existing socket if present
+            if (agentSocket) {
+                agentSocket.disconnect();
+                agentSocket = null;
+            }
+            
+            addMessage('WebSocket', '🔌 Connecting to WebSocket...', 'system');
+            
+            agentSocket = io(`${API_BASE}/agent-chat`, {
+                transports: ['websocket', 'polling'],
+                timeout: 10000
+            });
+            
+            agentSocket.on('connect', () => {
+                addMessage('WebSocket', '✅ Connected to agent-chat namespace!', 'success');
+                updateStatus('✅ WebSocket connected', 'success');
+                
+                // Auto-join session
+                joinSession();
+            });
+            
+            agentSocket.on('connect_error', (error) => {
+                addMessage('WebSocket', `❌ Connection failed: ${error.message}`, 'error');
+                updateStatus('❌ WebSocket connection failed', 'error');
+            });
+            
+            setupWebSocketEvents();
+        }
+        
+        function setupWebSocketEvents() {
+            agentSocket.on('session-info', (data) => {
+                addMessage('WebSocket', `✅ Joined session! Other agent: ${data.otherAgentId}`, 'success');
+                updateStatus('✅ Session active', 'success');
+            });
+            
+            agentSocket.on('conversation-history', (messages) => {
+                addMessage('WebSocket', `📜 Loaded ${messages.length} previous messages`, 'system');
+                messages.forEach(msg => {
+                    addMessage(msg.from, msg.message);
+                });
+            });
+            
+            agentSocket.on('new-message', (data) => {
+                addMessage(data.from, data.message);
+            });
+            
+            agentSocket.on('ai-thinking', (data) => {
+                addMessage('AI', `🤔 Agent ${data.agentId} is thinking...`, 'system');
+            });
+            
+            agentSocket.on('ai-response-generated', (data) => {
+                addMessage(data.from + ' 🤖', data.message, 'success');
+            });
+            
+            agentSocket.on('ai-skip', (data) => {
+                addMessage('AI', `⏭️ Agent ${data.agentId} skipped: ${data.reason}`, 'system');
+            });
+            
+            agentSocket.on('session-ended', (data) => {
+                addMessage('WebSocket', `🏁 Session ended. Transcript submitted: ${data.transcriptSubmitted}`, 'system');
+            });
+            
+            agentSocket.on('error', (error) => {
+                addMessage('Error', `❌ ${error.message} (${error.code})`, 'error');
+            });
+
+            // New enhanced WebSocket events
+            agentSocket.on('conversation-history-cached', (data) => {
+                addMessage('WebSocket', `📋 ${data.message}`, 'system');
+            });
+
+            agentSocket.on('message-stream', (message) => {
+                const indicator = message.isLast ? ' (Last)' : '';
+                addMessage(`${message.from}${indicator}`, message.message);
+            });
+
+            agentSocket.on('message-stream-complete', (data) => {
+                addMessage('Stream', `✅ Loaded ${data.sentCount} messages. ${data.hasMore ? `Load more from index ${data.nextStartIndex}` : 'All messages loaded.'}`, 'success');
+            });
+
+            agentSocket.on('message-sent-on-behalf', (data) => {
+                addMessage('WebSocket', `✅ Message sent on behalf of ${data.agentId}`, 'success');
+            });
+        }
+        
+        function joinSession() {
+            // Prevent multiple joins for the same session
+            if (hasJoinedSession) {
+                addMessage('WebSocket', '✅ Already joined this session', 'system');
+                return;
+            }
+            
+            agentSocket.emit('agent-join-session', {
+                sessionId: sessionId,
+                agentAccountId: currentAgent
+            });
+            hasJoinedSession = true;
+        }
+        
+        function disconnectWebSocket() {
+            if (agentSocket) {
+                agentSocket.disconnect();
+                agentSocket = null;
+                hasJoinedSession = false;
+                addMessage('WebSocket', '🔌 Disconnected', 'system');
+                updateStatus('🔌 Disconnected', 'system');
+            }
+        }
+        
+        function sendMessage() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (message && agentSocket && agentSocket.connected) {
+                agentSocket.emit('agent-send-message', {
+                    sessionId: sessionId,
+                    fromAgentId: currentAgent,
+                    message: message
+                });
+                input.value = '';
+            } else {
+                addMessage('Error', 'Not connected or empty message', 'error');
+            }
+        }
+        
+        function triggerAI(agentId) {
+            if (!agentSocket || !agentSocket.connected) {
+                addMessage('Error', 'WebSocket not connected', 'error');
+                return;
+            }
+            
+            addMessage('System', `🧠 Triggering AI for agent ${agentId}...`, 'system');
+            agentSocket.emit('trigger-ai-response', {
+                sessionId: sessionId,
+                agentAccountId: agentId
+            });
+        }
+
+        function sendMessageOnBehalf() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) {
+                addMessage('Error', 'Please enter a message', 'error');
+                return;
+            }
+
+            if (!agentSocket || !agentSocket.connected) {
+                addMessage('Error', 'WebSocket not connected', 'error');
+                return;
+            }
+            
+            addMessage('System', `📤 Sending message on behalf of Agent 1...`, 'system');
+            agentSocket.emit('user-send-message-on-behalf', {
+                sessionId: sessionId,
+                agentId: currentAgent,
+                message: message,
+                triggerAI: false
+            });
+            input.value = '';
+        }
+
+        function sendMessageAndTriggerAI() {
+            const input = document.getElementById('messageInput');
+            const message = input.value.trim();
+            
+            if (!message) {
+                addMessage('Error', 'Please enter a message', 'error');
+                return;
+            }
+
+            if (!agentSocket || !agentSocket.connected) {
+                addMessage('Error', 'WebSocket not connected', 'error');
+                return;
+            }
+            
+            addMessage('System', `📤🤖 Sending message + triggering AI response...`, 'system');
+            agentSocket.emit('user-send-message-on-behalf', {
+                sessionId: sessionId,
+                agentId: currentAgent,
+                message: message,
+                triggerAI: true
+            });
+            input.value = '';
+        }
+
+        function streamMessages() {
+            if (!agentSocket || !agentSocket.connected) {
+                addMessage('Error', 'WebSocket not connected', 'error');
+                return;
+            }
+            
+            addMessage('System', `📜 Streaming messages one-by-one...`, 'system');
+            agentSocket.emit('stream-conversation-messages', {
+                sessionId: sessionId,
+                startIndex: 0,
+                batchSize: 10
+            });
+        }
+        
+        // Handle Enter key and setup event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            // Message input enter key
+            document.getElementById('messageInput').addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendMessage();
+                }
+            });
+            
+            // Button event listeners
+            document.getElementById('clearTokenBtn').addEventListener('click', function() {
+                document.getElementById('jwtToken').value = '';
+                addMessage('System', '🔑 JWT token cleared', 'system');
+            });
+            document.getElementById('createSessionBtn').addEventListener('click', createSession);
+            document.getElementById('getAllSessionsBtn').addEventListener('click', getAllSessions);
+            document.getElementById('getSessionDetailsBtn').addEventListener('click', getSessionDetails);
+            document.getElementById('getMessagesBtn').addEventListener('click', getSessionMessages);
+            document.getElementById('connectBtn').addEventListener('click', connectWebSocket);
+            document.getElementById('disconnectBtn').addEventListener('click', disconnectWebSocket);
+            document.getElementById('sendMessageBtn').addEventListener('click', sendMessage);
+            document.getElementById('sendOnBehalfBtn').addEventListener('click', sendMessageOnBehalf);
+            document.getElementById('sendAndTriggerBtn').addEventListener('click', sendMessageAndTriggerAI);
+            document.getElementById('streamMessagesBtn').addEventListener('click', streamMessages);
+            document.getElementById('triggerAI1Btn').addEventListener('click', function() {
+                triggerAI('0.0.6154098');
+            });
+            document.getElementById('triggerAI2Btn').addEventListener('click', function() {
+                triggerAI('0.0.6153500');
+            });
+            document.getElementById('endSessionBtn').addEventListener('click', endSessionAPI);
+            document.getElementById('generateTranscriptBtn').addEventListener('click', generateTranscript);
+            document.getElementById('getTranscriptBtn').addEventListener('click', getStoredTranscript);
+            document.getElementById('getTranscriptStatusBtn').addEventListener('click', getTranscriptStatus);
+        });
+        
+        // Initial message
+        addMessage('System', '🚀 Ready! Click "Create New Session" to start.', 'system');
+    </script>
+</body>
+</html>

@@ -32,7 +32,92 @@ export class HtsService {
         );
     }
 
+async transferHbar(
+        sender: string,
+        receiver: string,
+        amount: number,
+        memo?: string
+    ): Promise<{sender: string; receiver: string; amount: number; status: 'success' | 'failed'; error?: string}> {
+        try {
+            this.logger.log({
+                sender,
+                receiver,
+                amount,
+                memo
+            }, 'Starting HBAR transfer');
 
+            // SMART-NODE CALL: asking the smart-nodes to transfer HBAR
+            let sendBytes = (await this.nodeClientService.axios.post(
+                `/hts/transfer/hbar`, {
+                amount: amount,
+                sender: sender,
+                receiver: receiver,
+                memo: memo || ''
+            })).data;
+
+            // smart-nodes will return a bytes transaction, ready to be signed and submitted to the network
+            let transaction = Transaction.fromBytes(new Uint8Array(Buffer.from(sendBytes)));
+            const client = this.hederaClient.getClient();
+
+            // Signing the transaction
+            const signTx = await transaction.sign(PrivateKey.fromString(this.node.privateKey));
+
+            // Submitting the transaction
+            const submitTx = await signTx.execute(client);
+            const receipt = await submitTx.getReceipt(client);
+
+            if (receipt.status === Status.Success) {
+                this.logger.log({
+                    sender,
+                    receiver,
+                    amount,
+                    memo,
+                    transactionId: submitTx.transactionId?.toString()
+                }, 'HBAR transfer completed successfully');
+
+                return {
+                    sender,
+                    receiver,
+                    amount,
+                    status: 'success'
+                };
+            } else {
+                this.logger.error({
+                    sender,
+                    receiver,
+                    amount,
+                    memo,
+                    receiptStatus: receipt.status
+                }, 'HBAR transfer transaction failed');
+
+                return {
+                    sender,
+                    receiver,
+                    amount,
+                    status: 'failed',
+                    error: `Transaction failed with status: ${receipt.status}`
+                };
+            }
+
+        } catch (error) {
+            this.logger.error({
+                sender,
+                receiver,
+                amount,
+                memo,
+                error: error?.message,
+                method: 'HtsService.transferHbar()'
+            }, 'Error transferring HBAR');
+
+            return {
+                sender,
+                receiver,
+                amount,
+                status: 'failed',
+                error: error instanceof AxiosError ? error.response?.data?.message || error.message : error.message
+            };
+        }
+    }
     async unfreezeAccounts(accountIds: string[]): Promise<{accountId: string; status: 'success' | 'failed'; error?: string}[]> {
         const results: {accountId: string; status: 'success' | 'failed'; error?: string}[] = [];
         const tokenId = this.configService.get<string>(`${this.environment}.tokenId`);
